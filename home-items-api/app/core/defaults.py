@@ -9,7 +9,12 @@ DEFAULT_ROOMS: list[str] = [
     "주방",
     "화장실1",
     "안방",
+    "안방화장실",
     "작은방1",
+    "작은방2",
+    "작은방3",
+    "베란다1",
+    "베란다2",
 ]
 
 DEFAULT_CATEGORIES: list[str] = [

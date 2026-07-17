@@ -89,7 +89,18 @@ def test_signup_seeds_defaults(client: TestClient):
     # 기본 장소(방) 5개
     rooms = client.get(f"/api/v1/homes/{homes[0]['id']}/rooms", headers=headers).json()["data"]
     room_names = [r["name"] for r in rooms]
-    assert room_names == ["거실", "주방", "화장실1", "안방", "작은방1"]
+    assert room_names == [
+        "거실",
+        "주방",
+        "화장실1",
+        "안방",
+        "안방화장실",
+        "작은방1",
+        "작은방2",
+        "작은방3",
+        "베란다1",
+        "베란다2",
+    ]
 
     # 기본 카테고리/태그
     categories = client.get("/api/v1/categories", headers=headers).json()["data"]
