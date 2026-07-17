@@ -1,12 +1,14 @@
-# 배포/통합 실행용 Docker Compose (개발 중에는 사용하지 않음)
+# 통합 실행용 Docker Compose (배포/전체 실행)
 #
-# 개발 환경에서는 로컬에 설치된 PostgreSQL(포트 5432)을 그대로 사용합니다.
-# 이 파일은 21단계(Docker 통합) 및 실 배포 시점에 백엔드/프론트 서비스와 함께 확장합니다.
+# 개발 중에는 로컬 PostgreSQL + uv/npm 을 직접 사용합니다.
+# 이 파일은 배포 또는 "한 번에 전체 실행"이 필요할 때 사용합니다.
 #
-# 사용 예 (배포 시):
-#   docker compose up -d db
+# 실행:
+#   docker compose up --build
+#   → 프론트:  http://localhost:8080
+#   → 백엔드:  http://localhost:8000 (직접 접근 시)
 #
-# 주의: 로컬 5432가 이미 쓰이고 있으면 아래 포트를 5433 등으로 바꾸세요.
+# 주의: 로컬 5432 가 이미 쓰이면 DB_PORT 를 5433 등으로 바꾸세요.
 
 services:
   db:
@@ -26,7 +28,34 @@ services:
       timeout: 5s
       retries: 5
 
-  # api / app 서비스는 21단계(Docker 통합)에서 추가합니다.
+  api:
+    build: ./home-items-api
+    container_name: home-items-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-home_items}:${POSTGRES_PASSWORD:-home_items_dev_pw}@db:5432/${POSTGRES_DB:-home_items}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-me-in-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - "8000:8000"
+    volumes:
+      - home_items_uploads:/app/uploads
+
+  app:
+    build:
+      context: ./home-items-app
+      args:
+        VITE_API_BASE_URL: /api/v1
+    container_name: home-items-app
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
 
 volumes:
   home_items_db_data:
+  home_items_uploads:
