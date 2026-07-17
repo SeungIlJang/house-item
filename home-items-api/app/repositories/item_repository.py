@@ -16,6 +16,7 @@ class ItemRepository:
             selectinload(Item.category),
             selectinload(Item.room),
             selectinload(Item.storage_location),
+            selectinload(Item.images),
         )
 
     def get(self, item_id: int) -> Item | None:

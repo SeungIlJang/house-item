@@ -5,6 +5,7 @@ from datetime import date, datetime
 from pydantic import Field, model_validator
 
 from app.schemas.common import CamelModel
+from app.schemas.item_image import ItemImageResponse
 from app.schemas.tag import TagResponse
 
 
@@ -56,5 +57,7 @@ class ItemResponse(CamelModel):
     room_name: str | None
     storage_full_path: str | None
     tags: list[TagResponse]
+    images: list[ItemImageResponse]
+    thumbnail_url: str | None  # -> thumbnailUrl (대표 이미지)
     created_at: datetime
     updated_at: datetime

@@ -1,10 +1,14 @@
 """물건(Item) 라우터."""
 
-from fastapi import APIRouter, Query, status
+from typing import Annotated
+
+from fastapi import APIRouter, File, Query, UploadFile, status
 
 from app.api.dependencies import CurrentUser, DbSession
 from app.schemas.common import ApiResponse, PageData
 from app.schemas.item import ItemCreate, ItemResponse, ItemUpdate
+from app.schemas.item_image import ItemImageResponse
+from app.services.item_image_service import ItemImageService
 from app.services.item_service import ItemService
 
 router = APIRouter(prefix="/items", tags=["items"])
@@ -59,3 +63,34 @@ def update_item(
 def delete_item(item_id: int, current_user: CurrentUser, db: DbSession) -> ApiResponse[None]:
     ItemService(db).delete(item_id, current_user.id)
     return ApiResponse(message="물건이 삭제되었습니다.")
+
+
+# ----- 이미지 -----
+
+
+@router.post("/{item_id}/images", status_code=status.HTTP_201_CREATED)
+async def upload_item_image(
+    item_id: int,
+    current_user: CurrentUser,
+    db: DbSession,
+    file: Annotated[UploadFile, File()],
+) -> ApiResponse[ItemImageResponse]:
+    content = await file.read()
+    image = ItemImageService(db).upload(
+        item_id,
+        current_user.id,
+        content=content,
+        filename=file.filename,
+        content_type=file.content_type,
+    )
+    return ApiResponse(
+        data=ItemImageResponse.model_validate(image), message="이미지가 업로드되었습니다."
+    )
+
+
+@router.delete("/{item_id}/images/{image_id}")
+def delete_item_image(
+    item_id: int, image_id: int, current_user: CurrentUser, db: DbSession
+) -> ApiResponse[None]:
+    ItemImageService(db).delete(item_id, image_id, current_user.id)
+    return ApiResponse(message="이미지가 삭제되었습니다.")

@@ -10,6 +10,7 @@ from app.database.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
     from app.models.category import Category
+    from app.models.item_image import ItemImage
     from app.models.room import Room
     from app.models.storage_location import StorageLocation
     from app.models.tag import Tag
@@ -54,4 +55,9 @@ class Item(Base, TimestampMixin):
     room: Mapped["Room | None"] = relationship()
     storage_location: Mapped["StorageLocation | None"] = relationship()
     tags: Mapped[list["Tag"]] = relationship(secondary=item_tags)
-    # images 관계는 11단계(이미지 업로드)에서 추가합니다.
+    images: Mapped[list["ItemImage"]] = relationship(
+        back_populates="item",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="ItemImage.sort_order",
+    )

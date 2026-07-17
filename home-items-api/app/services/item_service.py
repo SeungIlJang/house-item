@@ -10,6 +10,7 @@ from app.models.item import Item
 from app.repositories.item_repository import ItemRepository
 from app.repositories.tag_repository import TagRepository
 from app.schemas.item import ItemResponse
+from app.schemas.item_image import ItemImageResponse
 from app.schemas.tag import TagResponse
 from app.services.category_service import CategoryService
 from app.services.home_service import HomeService
@@ -89,6 +90,8 @@ class ItemService:
             if item.storage_location is not None
             else None
         )
+        images = [ItemImageResponse.model_validate(img) for img in item.images]
+        thumbnail_url = images[0].image_url if images else None
         return ItemResponse(
             id=item.id,
             name=item.name,
@@ -105,6 +108,8 @@ class ItemService:
             room_name=item.room.name if item.room else None,
             storage_full_path=storage_path,
             tags=[TagResponse.model_validate(t) for t in item.tags],
+            images=images,
+            thumbnail_url=thumbnail_url,
             created_at=item.created_at,
             updated_at=item.updated_at,
         )
