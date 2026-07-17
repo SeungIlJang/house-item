@@ -19,13 +19,20 @@ from app.schemas.common import success_response
 
 app = FastAPI(title="home-items API", version="0.1.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS: 개발에서는 localhost/127.0.0.1 의 모든 포트를 허용해 프리플라이트 오류를 방지.
+# 운영에서는 .env 의 CORS_ORIGINS 목록만 허용.
+cors_kwargs: dict = {
+    "allow_credentials": True,
+    "allow_methods": ["*"],
+    "allow_headers": ["*"],
+}
+if settings.is_production:
+    cors_kwargs["allow_origins"] = settings.cors_origins_list
+else:
+    cors_kwargs["allow_origins"] = settings.cors_origins_list
+    cors_kwargs["allow_origin_regex"] = r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+
+app.add_middleware(CORSMiddleware, **cors_kwargs)
 
 register_exception_handlers(app, is_production=settings.is_production)
 
