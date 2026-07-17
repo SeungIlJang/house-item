@@ -1,0 +1,44 @@
+# ===== Python / Backend =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+
+# uv
+# (uv.lock 은 커밋합니다)
+
+# 환경 변수 (비밀)
+.env
+.env.*
+!.env.example
+
+# 업로드된 이미지 (로컬 개발)
+home-items-api/uploads/
+
+# ===== Node / Frontend =====
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# ===== Capacitor / Mobile (추후) =====
+home-items-app/android/
+home-items-app/ios/
+
+# ===== OS / Editor =====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ===== Logs =====
+*.log
+npm-debug.log*
