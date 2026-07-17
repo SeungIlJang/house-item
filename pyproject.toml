@@ -1,0 +1,13 @@
+# 모노레포 루트용 최소 프로젝트 파일.
+# 실제 백엔드는 home-items-api/, 프론트는 home-items-app/ 에 있습니다.
+# 이 파일은 상위 uv 워크스페이스가 이 폴더를 멤버로 참조하기 때문에 유지합니다.
+[project]
+name = "house-items"
+version = "0.1.0"
+description = "집안의모든것 모노레포 루트"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.uv.workspace]
+members = []

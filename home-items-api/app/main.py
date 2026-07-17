@@ -1,14 +1,43 @@
 """집안의모든것 백엔드 진입점.
 
-2단계에서는 프로젝트가 정상 동작하는지 확인하기 위한 최소 앱만 둡니다.
-설정 관리, CORS, 공통 응답/예외 처리는 4단계에서 추가합니다.
+FastAPI 앱을 만들고 CORS, 공통 예외 처리, 상태 확인 API를 구성합니다.
+도메인 라우터(auth/home/room/...)는 이후 단계에서 추가합니다.
 """
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+
+from app.api.v1 import api_router
+from app.core.config import settings
+from app.core.exceptions import register_exception_handlers
+from app.database.session import engine
+from app.schemas.common import success_response
 
 app = FastAPI(title="home-items API", version="0.1.0")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+register_exception_handlers(app, is_production=settings.is_production)
+
+app.include_router(api_router)
+
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict:
+    """서버 생존 확인 (인증 불필요)."""
+    return success_response({"status": "ok", "env": settings.app_env})
+
+
+@app.get("/health/db")
+def health_db() -> dict:
+    """데이터베이스 연결 확인."""
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+    return success_response({"database": "ok"})

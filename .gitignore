@@ -18,6 +18,10 @@ env/
 .env.*
 !.env.example
 
+# 계정/비밀번호 등 민감 정보 기록 파일 (절대 커밋 금지)
+*.local.md
+CREDENTIALS.local.md
+
 # 업로드된 이미지 (로컬 개발)
 home-items-api/uploads/
 

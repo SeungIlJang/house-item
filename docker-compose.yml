@@ -1,0 +1,32 @@
+# 배포/통합 실행용 Docker Compose (개발 중에는 사용하지 않음)
+#
+# 개발 환경에서는 로컬에 설치된 PostgreSQL(포트 5432)을 그대로 사용합니다.
+# 이 파일은 21단계(Docker 통합) 및 실 배포 시점에 백엔드/프론트 서비스와 함께 확장합니다.
+#
+# 사용 예 (배포 시):
+#   docker compose up -d db
+#
+# 주의: 로컬 5432가 이미 쓰이고 있으면 아래 포트를 5433 등으로 바꾸세요.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: home-items-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-home_items}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-home_items_dev_pw}
+      POSTGRES_DB: ${POSTGRES_DB:-home_items}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - home_items_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-home_items}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # api / app 서비스는 21단계(Docker 통합)에서 추가합니다.
+
+volumes:
+  home_items_db_data:
