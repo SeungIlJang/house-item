@@ -77,3 +77,30 @@ def test_upload_ownership(client: TestClient, auth_headers: dict, other_headers:
     item_id = _create_item(client, auth_headers)
     res = _upload(client, other_headers, item_id)
     assert res.status_code == 404
+
+
+def test_large_image_is_downscaled(client: TestClient, auth_headers: dict, upload_tmp):
+    import io
+
+    from PIL import Image
+
+    # 3000x2000 큰 이미지를 업로드하면 긴 변이 1600 이하로 축소되어야 한다
+    buf = io.BytesIO()
+    Image.new("RGB", (3000, 2000), (120, 30, 30)).save(buf, format="JPEG", quality=95)
+    big_bytes = buf.getvalue()
+
+    item_id = _create_item(client, auth_headers)
+    res = client.post(
+        f"/api/v1/items/{item_id}/images",
+        files={"file": ("big.jpg", big_bytes, "image/jpeg")},
+        headers=auth_headers,
+    )
+    assert res.status_code == 201
+    saved_path = res.json()["data"]["imageUrl"]
+
+    # 저장된 파일을 열어 크기(치수/용량) 확인
+    key = saved_path.replace("/uploads/", "")
+    saved_file = upload_tmp / key
+    with Image.open(saved_file) as saved_img:
+        assert max(saved_img.size) <= 1600
+    assert saved_file.stat().st_size < len(big_bytes)

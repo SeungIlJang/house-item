@@ -4,8 +4,10 @@
 """
 
 import uuid
+from io import BytesIO
 from pathlib import Path
 
+from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import AppError, NotFoundError
@@ -16,7 +18,11 @@ from app.services.item_service import ItemService
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 업로드 원본 상한 10MB (압축 후 저장은 훨씬 작아짐)
+
+# 저장 시 리사이즈/압축 설정
+MAX_DIMENSION = 1600  # 긴 변 최대 px
+JPEG_QUALITY = 85
 
 
 class ItemImageService:
@@ -37,8 +43,11 @@ class ItemImageService:
         item = self.items.get_owned(item_id, user_id)  # 소유권 확인
         ext = self._validate(content=content, filename=filename, content_type=content_type)
 
-        key = f"items/{user_id}/{item_id}/{uuid.uuid4().hex}{ext}"
-        image_url = self.storage.save(content=content, key=key)
+        # 저장 전 리사이즈/압축 (실패 시 원본 유지)
+        data, out_ext = self._process_image(content, ext)
+
+        key = f"items/{user_id}/{item_id}/{uuid.uuid4().hex}{out_ext}"
+        image_url = self.storage.save(content=data, key=key)
 
         sort_order = self.repo.next_sort_order(item.id)
         return self.repo.create(
@@ -55,6 +64,34 @@ class ItemImageService:
             raise NotFoundError("해당 이미지를 찾을 수 없습니다.", error_code="IMAGE_NOT_FOUND")
         self.storage.delete(image.image_url)
         self.repo.delete(image)
+
+    def _process_image(self, content: bytes, ext: str) -> tuple[bytes, str]:
+        """긴 변 기준으로 축소하고 재인코딩해 용량을 줄인다.
+
+        - GIF: 애니메이션 보존을 위해 원본 유지
+        - 투명 이미지(alpha): PNG 로 저장
+        - 그 외: JPEG(품질 85)로 저장
+        - 처리 실패 시 원본을 그대로 반환
+        """
+        if ext == ".gif":
+            return content, ext
+        try:
+            image = Image.open(BytesIO(content))
+            image = ImageOps.exif_transpose(image)  # 촬영 방향(EXIF) 보정
+        except (UnidentifiedImageError, OSError):
+            return content, ext
+
+        image.thumbnail((MAX_DIMENSION, MAX_DIMENSION))  # 비율 유지 축소
+
+        has_alpha = image.mode in ("RGBA", "LA") or (
+            image.mode == "P" and "transparency" in image.info
+        )
+        buffer = BytesIO()
+        if has_alpha:
+            image.convert("RGBA").save(buffer, format="PNG", optimize=True)
+            return buffer.getvalue(), ".png"
+        image.convert("RGB").save(buffer, format="JPEG", quality=JPEG_QUALITY, optimize=True)
+        return buffer.getvalue(), ".jpg"
 
     def _validate(self, *, content: bytes, filename: str | None, content_type: str | None) -> str:
         if not content:
