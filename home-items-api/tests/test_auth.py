@@ -70,3 +70,31 @@ def test_me_invalid_token(client: TestClient):
     res = client.get("/api/v1/users/me", headers={"Authorization": "Bearer invalid.token"})
     assert res.status_code == 401
     assert res.json()["errorCode"] == "INVALID_TOKEN"
+
+
+def test_signup_seeds_defaults(client: TestClient):
+    _signup(client)
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "user@example.com", "password": "password123"},
+    )
+    token = login.json()["data"]["accessToken"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 기본 집 1개
+    homes = client.get("/api/v1/homes", headers=headers).json()["data"]
+    assert len(homes) == 1
+    assert homes[0]["name"] == "우리 집"
+
+    # 기본 장소(방) 5개
+    rooms = client.get(f"/api/v1/homes/{homes[0]['id']}/rooms", headers=headers).json()["data"]
+    room_names = [r["name"] for r in rooms]
+    assert room_names == ["거실", "주방", "화장실1", "안방", "작은방1"]
+
+    # 기본 카테고리/태그
+    categories = client.get("/api/v1/categories", headers=headers).json()["data"]
+    tags = client.get("/api/v1/tags", headers=headers).json()["data"]
+    category_names = {c["name"] for c in categories}
+    tag_names = {t["name"] for t in tags}
+    assert {"전자제품", "의류", "서류", "주방용품", "공구", "생활용품"} <= category_names
+    assert {"중요", "자주사용", "겨울용", "비상용"} <= tag_names

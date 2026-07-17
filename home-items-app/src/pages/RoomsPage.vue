@@ -48,8 +48,8 @@ async function load() {
 
 async function promptCreate() {
   const alert = await alertController.create({
-    header: '방 등록',
-    inputs: [{ name: 'name', placeholder: '방 이름 (예: 안방)' }],
+    header: '장소 등록',
+    inputs: [{ name: 'name', placeholder: '장소 이름 (예: 거실)' }],
     buttons: [
       { text: '취소', role: 'cancel' },
       {
@@ -71,7 +71,7 @@ async function promptCreate() {
 
 async function promptEdit(room: Room) {
   const alert = await alertController.create({
-    header: '방 수정',
+    header: '장소 수정',
     inputs: [{ name: 'name', value: room.name }],
     buttons: [
       { text: '취소', role: 'cancel' },
@@ -94,7 +94,7 @@ async function promptEdit(room: Room) {
 
 async function confirmDelete(room: Room) {
   const alert = await alertController.create({
-    header: '방 삭제',
+    header: '장소 삭제',
     message: `'${room.name}'을 삭제하면 하위 수납공간도 함께 삭제됩니다.`,
     buttons: [
       { text: '취소', role: 'cancel' },
@@ -125,7 +125,7 @@ onIonViewWillEnter(load)
         <ion-buttons slot="start">
           <ion-back-button default-href="/tabs/places" />
         </ion-buttons>
-        <ion-title>방 관리</ion-title>
+        <ion-title>장소 관리</ion-title>
         <ion-buttons slot="end">
           <ion-button @click="promptCreate">
             <ion-icon slot="icon-only" :icon="addOutline" />
@@ -137,8 +137,8 @@ onIonViewWillEnter(load)
       <div v-if="loading" class="center"><ion-spinner /></div>
       <template v-else>
         <div v-if="rooms.length === 0" class="empty">
-          <p>등록된 방이 없어요.</p>
-          <ion-button @click="promptCreate">방 등록하기</ion-button>
+          <p>등록된 장소가 없어요.</p>
+          <ion-button @click="promptCreate">장소 등록하기</ion-button>
         </div>
         <ion-list v-else>
           <ion-item-sliding v-for="r in rooms" :key="r.id">

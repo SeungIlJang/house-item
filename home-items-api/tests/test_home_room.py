@@ -11,10 +11,10 @@ def test_home_crud(client: TestClient, auth_headers: dict):
     # 생성
     home_id = _create_home(client, auth_headers)
 
-    # 목록
+    # 목록 (기본 집 "우리 집" + 방금 만든 집 = 2)
     res = client.get("/api/v1/homes", headers=auth_headers)
     assert res.status_code == 200
-    assert len(res.json()["data"]) == 1
+    assert len(res.json()["data"]) == 2
 
     # 수정
     res = client.put(

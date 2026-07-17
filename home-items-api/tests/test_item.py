@@ -15,9 +15,9 @@ def _setup(client: TestClient, headers: dict) -> dict:
         headers=headers,
     ).json()["data"]["id"]
     category_id = client.post(
-        "/api/v1/categories", json={"name": "전자제품"}, headers=headers
+        "/api/v1/categories", json={"name": "취미용품"}, headers=headers
     ).json()["data"]["id"]
-    tag_id = client.post("/api/v1/tags", json={"name": "중요"}, headers=headers).json()["data"][
+    tag_id = client.post("/api/v1/tags", json={"name": "즐겨찾기"}, headers=headers).json()["data"][
         "id"
     ]
     return {
@@ -48,10 +48,10 @@ def test_item_create_full(client: TestClient, auth_headers: dict):
     assert res.status_code == 201
     data = res.json()["data"]
     assert data["name"] == "휴대전화 충전기"
-    assert data["categoryName"] == "전자제품"
+    assert data["categoryName"] == "취미용품"
     assert data["roomName"] == "안방"
     assert data["storageFullPath"] == "안방 > 붙박이장"
-    assert [t["name"] for t in data["tags"]] == ["중요"]
+    assert [t["name"] for t in data["tags"]] == ["즐겨찾기"]
 
 
 def test_item_list_pagination(client: TestClient, auth_headers: dict):

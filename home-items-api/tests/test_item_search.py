@@ -12,9 +12,9 @@ def _setup(client: TestClient, headers: dict) -> dict:
         f"/api/v1/homes/{home_id}/rooms", json={"name": "거실"}, headers=headers
     ).json()["data"]["id"]
     category_id = client.post(
-        "/api/v1/categories", json={"name": "전자제품"}, headers=headers
+        "/api/v1/categories", json={"name": "취미용품"}, headers=headers
     ).json()["data"]["id"]
-    tag_id = client.post("/api/v1/tags", json={"name": "중요"}, headers=headers).json()["data"][
+    tag_id = client.post("/api/v1/tags", json={"name": "즐겨찾기"}, headers=headers).json()["data"][
         "id"
     ]
     return {

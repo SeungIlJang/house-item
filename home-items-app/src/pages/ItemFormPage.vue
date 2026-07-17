@@ -263,7 +263,7 @@ onIonViewWillEnter(load)
           </ion-item>
           <ion-item>
             <ion-select
-              label="방"
+              label="장소"
               label-placement="stacked"
               v-model="form.roomId"
               placeholder="선택 안 함"
