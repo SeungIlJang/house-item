@@ -102,6 +102,14 @@ def test_signup_seeds_defaults(client: TestClient):
         "베란다2",
     ]
 
+    # 장소별 기본 수납공간 (예: 주방 → 냉장고/싱크대)
+    kitchen = next(r for r in rooms if r["name"] == "주방")
+    tree = client.get(f"/api/v1/rooms/{kitchen['id']}/storage-locations", headers=headers).json()[
+        "data"
+    ]
+    storage_names = {node["name"] for node in tree}
+    assert {"냉장고", "싱크대"} <= storage_names
+
     # 기본 카테고리/태그
     categories = client.get("/api/v1/categories", headers=headers).json()["data"]
     tags = client.get("/api/v1/tags", headers=headers).json()["data"]
