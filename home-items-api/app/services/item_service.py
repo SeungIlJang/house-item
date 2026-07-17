@@ -41,6 +41,34 @@ class ItemService:
         total = self.repo.count_by_user(user_id)
         return items, total
 
+    def search(
+        self,
+        user_id: int,
+        *,
+        keyword: str | None,
+        home_id: int | None,
+        room_id: int | None,
+        storage_location_id: int | None,
+        category_id: int | None,
+        tag_id: int | None,
+        sort: str,
+        page: int,
+        size: int,
+    ) -> tuple[list[Item], int]:
+        offset = (page - 1) * size
+        return self.repo.search(
+            user_id,
+            keyword=keyword,
+            home_id=home_id,
+            room_id=room_id,
+            storage_location_id=storage_location_id,
+            category_id=category_id,
+            tag_id=tag_id,
+            sort=sort,
+            offset=offset,
+            limit=size,
+        )
+
     # ----- 생성/수정/삭제 -----
 
     def create(self, user_id: int, payload) -> Item:

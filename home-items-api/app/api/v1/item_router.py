@@ -34,6 +34,44 @@ def list_items(
     return ApiResponse(data=data)
 
 
+@router.get("/search")
+def search_items(
+    current_user: CurrentUser,
+    db: DbSession,
+    keyword: str | None = Query(None),
+    home_id: int | None = Query(None),
+    room_id: int | None = Query(None),
+    storage_location_id: int | None = Query(None),
+    category_id: int | None = Query(None),
+    tag_id: int | None = Query(None),
+    sort: str = Query("newest"),
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+) -> ApiResponse[PageData[ItemResponse]]:
+    service = ItemService(db)
+    items, total = service.search(
+        current_user.id,
+        keyword=keyword,
+        home_id=home_id,
+        room_id=room_id,
+        storage_location_id=storage_location_id,
+        category_id=category_id,
+        tag_id=tag_id,
+        sort=sort,
+        page=page,
+        size=size,
+    )
+    total_pages = (total + size - 1) // size
+    data = PageData(
+        content=[service.to_response(i) for i in items],
+        page=page,
+        size=size,
+        total_elements=total,
+        total_pages=total_pages,
+    )
+    return ApiResponse(data=data)
+
+
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_item(
     payload: ItemCreate, current_user: CurrentUser, db: DbSession
