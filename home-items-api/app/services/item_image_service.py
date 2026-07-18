@@ -1,11 +1,12 @@
 """물건 이미지 업로드/삭제 업무 로직.
 
-파일 검증(확장자·MIME·크기) 후 저장소(FileStorage)에 저장합니다.
+어떤 이미지든(HEIC/HEIF 포함) 받아서 JPEG/PNG 로 변환해 저장합니다.
+- 형식은 확장자/MIME 로 막지 않고, 실제로 디코딩되는 이미지인지로 판단
+- 저장 시 긴 변 최대 1600px 로 축소 + 재인코딩(용량 절감)
 """
 
 import uuid
 from io import BytesIO
-from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.orm import Session
@@ -16,9 +17,15 @@ from app.repositories.item_image_repository import ItemImageRepository
 from app.services.file_storage import get_file_storage
 from app.services.item_service import ItemService
 
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
-ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 업로드 원본 상한 10MB (압축 후 저장은 훨씬 작아짐)
+# HEIC/HEIF(삼성·아이폰 카메라 기본 형식) 디코딩 지원
+try:
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+except ImportError:  # pragma: no cover
+    pass
+
+MAX_FILE_SIZE = 20 * 1024 * 1024  # 업로드 원본 상한 20MB (변환·압축 후 저장은 훨씬 작음)
 
 # 저장 시 리사이즈/압축 설정
 MAX_DIMENSION = 1600  # 긴 변 최대 px
@@ -41,10 +48,10 @@ class ItemImageService:
         content_type: str | None,
     ) -> ItemImage:
         item = self.items.get_owned(item_id, user_id)  # 소유권 확인
-        ext = self._validate(content=content, filename=filename, content_type=content_type)
+        self._check_size(content)
 
-        # 저장 전 리사이즈/압축 (실패 시 원본 유지)
-        data, out_ext = self._process_image(content, ext)
+        # 어떤 형식이든 열어서 JPEG/PNG 로 변환 (HEIC 등 → 등록 가능한 형식)
+        data, out_ext = self._process_image(content)
 
         key = f"items/{user_id}/{item_id}/{uuid.uuid4().hex}{out_ext}"
         image_url = self.storage.save(content=data, key=key)
@@ -65,22 +72,28 @@ class ItemImageService:
         self.storage.delete(image.image_url)
         self.repo.delete(image)
 
-    def _process_image(self, content: bytes, ext: str) -> tuple[bytes, str]:
-        """긴 변 기준으로 축소하고 재인코딩해 용량을 줄인다.
+    def _process_image(self, content: bytes) -> tuple[bytes, str]:
+        """이미지를 열어 저장 가능한 형식(JPEG/PNG)으로 변환한다.
 
-        - GIF: 애니메이션 보존을 위해 원본 유지
+        - 디코딩 불가(이미지가 아님) → 오류
+        - 애니메이션 GIF: 원본 유지(.gif)
         - 투명 이미지(alpha): PNG 로 저장
-        - 그 외: JPEG(품질 85)로 저장
-        - 처리 실패 시 원본을 그대로 반환
+        - 그 외(HEIC/JPEG/WEBP 등): JPEG(품질 85)로 변환
         """
-        if ext == ".gif":
-            return content, ext
         try:
             image = Image.open(BytesIO(content))
-            image = ImageOps.exif_transpose(image)  # 촬영 방향(EXIF) 보정
-        except (UnidentifiedImageError, OSError):
-            return content, ext
+            image.load()
+        except (UnidentifiedImageError, OSError, ValueError):
+            raise AppError(
+                "이미지 파일이 아니거나 지원하지 않는 형식입니다.",
+                error_code="INVALID_IMAGE",
+            ) from None
 
+        # 애니메이션 GIF 는 그대로 보존
+        if getattr(image, "format", None) == "GIF" and getattr(image, "is_animated", False):
+            return content, ".gif"
+
+        image = ImageOps.exif_transpose(image)  # 촬영 방향(EXIF) 보정
         image.thumbnail((MAX_DIMENSION, MAX_DIMENSION))  # 비율 유지 축소
 
         has_alpha = image.mode in ("RGBA", "LA") or (
@@ -93,18 +106,12 @@ class ItemImageService:
         image.convert("RGB").save(buffer, format="JPEG", quality=JPEG_QUALITY, optimize=True)
         return buffer.getvalue(), ".jpg"
 
-    def _validate(self, *, content: bytes, filename: str | None, content_type: str | None) -> str:
+    def _check_size(self, content: bytes) -> None:
         if not content:
             raise AppError("빈 파일은 업로드할 수 없습니다.", error_code="EMPTY_FILE")
         if len(content) > MAX_FILE_SIZE:
             raise AppError(
-                "이미지 크기는 5MB 를 넘을 수 없습니다.",
+                "이미지 크기는 20MB 를 넘을 수 없습니다.",
                 error_code="FILE_TOO_LARGE",
                 status_code=413,
             )
-        ext = Path(filename or "").suffix.lower()
-        if ext not in ALLOWED_EXTENSIONS:
-            raise AppError("허용되지 않는 파일 형식입니다.", error_code="INVALID_FILE_EXTENSION")
-        if content_type not in ALLOWED_MIME_TYPES:
-            raise AppError("허용되지 않는 파일 형식입니다.", error_code="INVALID_MIME_TYPE")
-        return ext

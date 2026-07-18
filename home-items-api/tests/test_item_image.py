@@ -47,18 +47,38 @@ def test_upload_and_thumbnail(client: TestClient, auth_headers: dict, upload_tmp
     assert detail["thumbnailUrl"] == detail["images"][0]["imageUrl"]
 
 
-def test_upload_invalid_extension(client: TestClient, auth_headers: dict, upload_tmp):
+def test_upload_non_image_rejected(client: TestClient, auth_headers: dict, upload_tmp):
+    # 이미지가 아닌 파일은 거부 (형식이 아니라 디코딩 가능 여부로 판단)
     item_id = _create_item(client, auth_headers)
-    res = _upload(client, auth_headers, item_id, filename="doc.txt", content_type="text/plain")
+    res = client.post(
+        f"/api/v1/items/{item_id}/images",
+        files={"file": ("doc.txt", b"this is not an image", "text/plain")},
+        headers=auth_headers,
+    )
     assert res.status_code == 400
-    assert res.json()["errorCode"] == "INVALID_FILE_EXTENSION"
+    assert res.json()["errorCode"] == "INVALID_IMAGE"
 
 
-def test_upload_invalid_mime(client: TestClient, auth_headers: dict, upload_tmp):
+def test_upload_heic_is_converted(client: TestClient, auth_headers: dict, upload_tmp):
+    # 삼성/아이폰 카메라의 HEIC 도 받아서 JPEG 로 변환 저장되어야 한다
+    import io
+
+    import pillow_heif  # noqa: F401  (등록 트리거)
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (1200, 900), (10, 120, 200)).save(buf, format="HEIF")
+    heic_bytes = buf.getvalue()
+
     item_id = _create_item(client, auth_headers)
-    res = _upload(client, auth_headers, item_id, filename="photo.png", content_type="text/plain")
-    assert res.status_code == 400
-    assert res.json()["errorCode"] == "INVALID_MIME_TYPE"
+    res = client.post(
+        f"/api/v1/items/{item_id}/images",
+        files={"file": ("photo.heic", heic_bytes, "image/heic")},
+        headers=auth_headers,
+    )
+    assert res.status_code == 201
+    # 저장은 jpg 로 변환됨
+    assert res.json()["data"]["imageUrl"].endswith(".jpg")
 
 
 def test_delete_image(client: TestClient, auth_headers: dict, upload_tmp):
