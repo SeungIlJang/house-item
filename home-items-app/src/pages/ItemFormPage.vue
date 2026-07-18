@@ -52,6 +52,9 @@ const isEdit = computed(() => itemId.value !== null)
 const loading = ref(false)
 const saving = ref(false)
 const savingText = ref('저장 중...')
+const photoLoading = ref(false)
+const busy = computed(() => saving.value || photoLoading.value)
+const busyText = computed(() => (saving.value ? savingText.value : '사진 불러오는 중...'))
 
 const homes = ref<Home[]>([])
 const rooms = ref<Room[]>([])
@@ -187,7 +190,17 @@ async function addFromCamera() {
   }
 }
 
-// 갤러리 → 여러 장 선택. 미리보기는 webPath 로 즉시 표시, 파일은 저장 시 변환.
+// webPath 이미지를 미리 로드(클라우드 다운로드 포함). 성공/실패 상관없이 완료되면 resolve.
+function preloadImage(url: string): Promise<void> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => resolve()
+    img.onerror = () => resolve()
+    img.src = url
+  })
+}
+
+// 갤러리 → 여러 장 선택. 완료 후 썸네일 준비되는 동안 로딩 표시.
 async function openGallery() {
   if (!isNative) {
     fileInput.value?.click()
@@ -200,8 +213,17 @@ async function openGallery() {
     if (!isUserCancel(e)) toast.error('갤러리를 열지 못했습니다.')
     return
   }
-  for (const photo of result.photos) {
-    pendingPhotos.value.push({ previewUrl: photo.webPath, file: null, fetchUrl: photo.webPath })
+  if (!result.photos.length) return
+
+  photoLoading.value = true
+  try {
+    // 준비되면 한꺼번에 추가 → 썸네일이 즉시 표시됨
+    await Promise.all(result.photos.map((photo) => preloadImage(photo.webPath)))
+    for (const photo of result.photos) {
+      pendingPhotos.value.push({ previewUrl: photo.webPath, file: null, fetchUrl: photo.webPath })
+    }
+  } finally {
+    photoLoading.value = false
   }
 }
 
@@ -388,10 +410,10 @@ onIonViewWillEnter(load)
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding-bottom">
-      <!-- 저장 중 로딩 오버레이 -->
-      <div v-if="saving" class="saving-overlay">
+      <!-- 저장/사진 로딩 오버레이 -->
+      <div v-if="busy" class="saving-overlay">
         <ion-spinner name="crescent" />
-        <p>{{ savingText }}</p>
+        <p>{{ busyText }}</p>
       </div>
 
       <div v-if="loading" class="center"><ion-spinner /></div>
