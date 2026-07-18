@@ -148,6 +148,7 @@ async function pickPhoto(source: CameraSource) {
       resultType: CameraResultType.Base64,
       quality: 90,
       correctOrientation: true,
+      allowEditing: true, // 첨부 전에 자르기/회전 등 편집
     })
     if (!photo.base64String) return
     const format = photo.format || 'jpeg'
