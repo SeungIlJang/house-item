@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   IonPage,
@@ -216,6 +216,7 @@ async function openGallery() {
   if (!result.photos.length) return
 
   photoLoading.value = true
+  await nextTick()
   try {
     // 준비되면 한꺼번에 추가 → 썸네일이 즉시 표시됨
     await Promise.all(result.photos.map((photo) => preloadImage(photo.webPath)))
@@ -349,6 +350,9 @@ async function save() {
       ? `저장 중... (사진 ${pendingPhotos.value.length}장 업로드)`
       : '저장 중...'
   saving.value = true
+  // 오버레이를 먼저 그린 뒤(다음 프레임) 무거운 작업 시작 → 즉시 표시
+  await nextTick()
+  await new Promise((r) => requestAnimationFrame(() => r(null)))
   try {
     const payload = {
       name: form.value.name.trim(),
