@@ -22,7 +22,6 @@ import {
   IonAccordion,
   IonAccordionGroup,
   alertController,
-  loadingController,
   onIonViewWillEnter,
 } from '@ionic/vue'
 import { trashOutline, chevronDownOutline, cameraOutline, imagesOutline } from 'ionicons/icons'
@@ -52,6 +51,7 @@ const isEdit = computed(() => itemId.value !== null)
 
 const loading = ref(false)
 const saving = ref(false)
+const savingText = ref('저장 중...')
 
 const homes = ref<Home[]>([])
 const rooms = ref<Room[]>([])
@@ -296,13 +296,11 @@ async function save() {
     await alert.present()
     return
   }
-  saving.value = true
-  const loadingText =
+  savingText.value =
     pendingPhotos.value.length > 0
       ? `저장 중... (사진 ${pendingPhotos.value.length}장 업로드)`
       : '저장 중...'
-  const loading = await loadingController.create({ message: loadingText })
-  await loading.present()
+  saving.value = true
   try {
     const payload = {
       name: form.value.name.trim(),
@@ -339,7 +337,6 @@ async function save() {
   } catch (e) {
     toast.error(extractErrorMessage(e, '저장에 실패했습니다.'))
   } finally {
-    await loading.dismiss()
     saving.value = false
   }
 }
@@ -364,6 +361,12 @@ onIonViewWillEnter(load)
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding-bottom">
+      <!-- 저장 중 로딩 오버레이 -->
+      <div v-if="saving" class="saving-overlay">
+        <ion-spinner name="crescent" />
+        <p>{{ savingText }}</p>
+      </div>
+
       <div v-if="loading" class="center"><ion-spinner /></div>
       <template v-else>
         <div v-if="homes.length === 0" class="empty">
@@ -581,5 +584,22 @@ onIonViewWillEnter(load)
   margin-top: 8px;
   color: var(--ion-color-medium);
   font-size: 14px;
+}
+.saving-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
+.saving-overlay ion-spinner {
+  width: 44px;
+  height: 44px;
+  --color: #fff;
 }
 </style>
