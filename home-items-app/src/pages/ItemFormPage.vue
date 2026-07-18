@@ -21,21 +21,13 @@ import {
   IonIcon,
   IonAccordion,
   IonAccordionGroup,
-  IonModal,
   alertController,
+  loadingController,
   onIonViewWillEnter,
 } from '@ionic/vue'
-import {
-  trashOutline,
-  chevronDownOutline,
-  cameraOutline,
-  imagesOutline,
-  refreshOutline,
-} from 'ionicons/icons'
+import { trashOutline, chevronDownOutline, cameraOutline, imagesOutline } from 'ionicons/icons'
 import { Capacitor } from '@capacitor/core'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
-import { Cropper } from 'vue-advanced-cropper'
-import 'vue-advanced-cropper/dist/style.css'
 import { homeApi, roomApi, storageApi, categoryApi, tagApi, itemApi, imageUrl } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
@@ -67,16 +59,8 @@ const storages = ref<{ id: number; label: string }[]>([])
 const categories = ref<Category[]>([])
 const tags = ref<Tag[]>([])
 const images = ref<ItemImage[]>([])
-interface PendingPhoto {
-  file: File
-  source: CameraSource | null
-  url: string // 미리보기용 object URL
-}
-const pendingPhotos = ref<PendingPhoto[]>([])
-
-function makePhoto(file: File, source: CameraSource | null): PendingPhoto {
-  return { file, source, url: URL.createObjectURL(file) }
-}
+// 새로 추가한 사진(저장 시 업로드). 미리보기 없이 파일만 담는다.
+const pendingFiles = ref<File[]>([])
 
 const form = ref({
   name: '',
@@ -153,121 +137,75 @@ async function onRoomChange() {
 // 웹(브라우저)에서만 파일 input 사용, 앱(네이티브)에서는 카메라 플러그인 사용
 const isNative = Capacitor.isNativePlatform()
 
-function onFilesSelected(ev: Event) {
-  const input = ev.target as HTMLInputElement
-  if (input.files) {
-    for (const file of Array.from(input.files)) {
-      pendingPhotos.value.push(makePhoto(file, null))
-    }
-  }
-  input.value = ''
-}
-
-// 카메라/갤러리에서 사진 1장을 가져와 File 로 변환 (편집 없이 원본 그대로)
-async function capturePhoto(source: CameraSource): Promise<File | null> {
-  const photo = await Camera.getPhoto({
-    source, // Camera(촬영) 또는 Photos(갤러리)
-    resultType: CameraResultType.Base64,
-    quality: 90,
-    correctOrientation: true,
-    allowEditing: false,
-  })
-  if (!photo.base64String) return null
-  const format = photo.format || 'jpeg'
-  const dataUrl = `data:image/${format};base64,${photo.base64String}`
-  const blob = await (await fetch(dataUrl)).blob()
-  return new File([blob], `photo_${Date.now()}.${format}`, { type: `image/${format}` })
-}
-
 function isUserCancel(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : ''
   return /cancel/i.test(msg)
 }
 
-function removePendingFile(index: number) {
-  URL.revokeObjectURL(pendingPhotos.value[index].url)
-  pendingPhotos.value.splice(index, 1)
+// 웹(브라우저)용 파일 입력
+const fileInput = ref<HTMLInputElement | null>(null)
+
+function onFilesSelected(ev: Event) {
+  const input = ev.target as HTMLInputElement
+  if (input.files) {
+    for (const file of Array.from(input.files)) pendingFiles.value.push(file)
+  }
+  input.value = ''
 }
 
-// ----- 앱 내장 사진 편집기(자르기/회전) -----
-// 흐름: 촬영/선택 → 편집 화면(선택 사항으로 편집) → [선택] 눌러 확정
-const editorOpen = ref(false)
-const editMode = ref<'add' | 'replace'>('add')
-const editIndex = ref(-1)
-const editSource = ref<CameraSource | null>(null)
-const editSrc = ref('') // 편집기에 보여줄 임시 object URL
-const cropperRef = ref<InstanceType<typeof Cropper> | null>(null)
-
-// 편집 화면을 기본 크롭 영역을 이미지 전체로 설정 → 그냥 [선택] 하면 원본 그대로
-function defaultFullSize({ imageSize }: { imageSize: { width: number; height: number } }) {
-  return { width: imageSize.width, height: imageSize.height }
+// base64 → File (촬영 시 사용: fetch 없이 빠르고 안정적)
+function base64ToFile(base64: string, format?: string): File {
+  const type = `image/${format || 'jpeg'}`
+  const bin = atob(base64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new File([bytes], `photo_${Date.now()}.${format || 'jpg'}`, { type })
 }
 
-// 촬영(카메라) → 1장 촬영 후 편집 화면 열기 (아직 목록에 추가하지 않음)
-async function pickPhoto(source: CameraSource) {
+// 촬영 → 사진 1장 추가 (미리보기 없이 목록에만 담김)
+async function addFromCamera() {
   try {
-    const file = await capturePhoto(source)
-    if (!file) return
-    editMode.value = 'add'
-    editSource.value = source
-    editSrc.value = URL.createObjectURL(file)
-    editorOpen.value = true
+    const photo = await Camera.getPhoto({
+      source: CameraSource.Camera,
+      resultType: CameraResultType.Base64,
+      quality: 90,
+      correctOrientation: true,
+    })
+    if (photo.base64String) {
+      pendingFiles.value.push(base64ToFile(photo.base64String, photo.format))
+    }
   } catch (e) {
     if (!isUserCancel(e)) toast.error('사진을 가져오지 못했습니다.')
   }
 }
 
-// 갤러리 → 표준 파일 선택창으로 여러 장 선택 (실제 File 을 바로 받아 미리보기·업로드가 안정적)
-const fileInput = ref<HTMLInputElement | null>(null)
-function openGallery() {
-  fileInput.value?.click()
-}
-
-// 이미 추가한 사진을 다시 편집
-function editPhoto(index: number) {
-  editMode.value = 'replace'
-  editIndex.value = index
-  editSource.value = pendingPhotos.value[index].source
-  editSrc.value = pendingPhotos.value[index].url
-  editorOpen.value = true
-}
-
-function rotateEditor() {
-  cropperRef.value?.rotate(90)
-}
-
-function closeEditor() {
-  // add 모드에서 임시로 만든 object URL 정리 (replace 모드는 목록 url 을 재사용하므로 유지)
-  if (editMode.value === 'add' && editSrc.value) URL.revokeObjectURL(editSrc.value)
-  editorOpen.value = false
-  editIndex.value = -1
-}
-
-// [선택] — 현재 편집 상태(자르기/회전 반영)를 확정
-function applyEdit() {
-  const canvas = cropperRef.value?.getResult()?.canvas
-  if (!canvas) {
-    closeEditor()
+// 갤러리 → 여러 장 선택 (앱: Capacitor, 웹: 파일 입력)
+async function openGallery() {
+  if (!isNative) {
+    fileInput.value?.click()
     return
   }
-  canvas.toBlob(
-    (blob) => {
-      if (blob) {
-        const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' })
-        const url = URL.createObjectURL(file)
-        if (editMode.value === 'replace' && editIndex.value >= 0) {
-          const old = pendingPhotos.value[editIndex.value]
-          URL.revokeObjectURL(old.url)
-          pendingPhotos.value[editIndex.value] = { file, source: old.source, url }
-        } else {
-          pendingPhotos.value.push({ file, source: editSource.value, url })
-        }
-      }
-      closeEditor()
-    },
-    'image/jpeg',
-    0.92,
-  )
+  let result
+  try {
+    result = await Camera.pickImages({ quality: 90 })
+  } catch (e) {
+    if (!isUserCancel(e)) toast.error('갤러리를 열지 못했습니다.')
+    return
+  }
+  for (const [i, photo] of result.photos.entries()) {
+    try {
+      const blob = await (await fetch(photo.webPath)).blob()
+      pendingFiles.value.push(
+        new File([blob], `photo_${Date.now()}_${i}.jpg`, { type: blob.type || 'image/jpeg' }),
+      )
+    } catch {
+      // 개별 실패는 건너뜀
+    }
+  }
+}
+
+function clearPendingPhotos() {
+  pendingFiles.value = []
 }
 
 async function deleteExistingImage(imageId: number) {
@@ -329,8 +267,7 @@ function reset() {
     categoryId: null,
     tagIds: [],
   }
-  pendingPhotos.value.forEach((p) => URL.revokeObjectURL(p.url))
-  pendingPhotos.value = []
+  pendingFiles.value = []
   images.value = []
 }
 
@@ -349,6 +286,12 @@ async function save() {
     return
   }
   saving.value = true
+  const loadingText =
+    pendingFiles.value.length > 0
+      ? `저장 중... (사진 ${pendingFiles.value.length}장 업로드)`
+      : '저장 중...'
+  const loading = await loadingController.create({ message: loadingText })
+  await loading.present()
   try {
     const payload = {
       name: form.value.name.trim(),
@@ -366,8 +309,8 @@ async function save() {
       ? await itemApi.update(itemId.value as number, payload)
       : await itemApi.create(payload)
 
-    for (const photo of pendingPhotos.value) {
-      await itemApi.uploadImage(saved.id, photo.file)
+    for (const file of pendingFiles.value) {
+      await itemApi.uploadImage(saved.id, file)
     }
 
     toast.success(isEdit.value ? '수정되었습니다.' : '등록되었습니다.')
@@ -380,6 +323,7 @@ async function save() {
   } catch (e) {
     toast.error(extractErrorMessage(e, '저장에 실패했습니다.'))
   } finally {
+    await loading.dismiss()
     saving.value = false
   }
 }
@@ -517,35 +461,32 @@ onIonViewWillEnter(load)
 
         <div v-if="homes.length > 0" class="ion-padding-horizontal">
           <ion-label class="section">사진</ion-label>
-          <div class="images">
+
+          <!-- 이미 저장된 사진(수정 화면)만 표시 -->
+          <div v-if="images.length" class="images">
             <div v-for="img in images" :key="img.id" class="img-box">
               <img :src="imageUrl(img.imageUrl)" alt="" />
               <ion-icon :icon="trashOutline" class="del" @click="deleteExistingImage(img.id)" />
             </div>
-            <div v-for="(p, idx) in pendingPhotos" :key="'p' + idx" class="img-box pending">
-              <img :src="p.url" alt="" />
-              <ion-icon :icon="trashOutline" class="del" @click="removePendingFile(idx)" />
-              <button type="button" class="edit-btn" @click="editPhoto(idx)">편집</button>
-            </div>
           </div>
 
           <div class="photo-actions">
-            <!-- 촬영은 네이티브 카메라 사용 -->
-            <ion-button
-              v-if="isNative"
-              fill="outline"
-              size="default"
-              @click="pickPhoto(CameraSource.Camera)"
-            >
+            <ion-button v-if="isNative" fill="outline" size="default" @click="addFromCamera">
               <ion-icon slot="start" :icon="cameraOutline" />
               사진 촬영
             </ion-button>
-            <!-- 갤러리는 표준 파일 선택창(여러 장 선택) -->
             <ion-button fill="outline" size="default" @click="openGallery">
               <ion-icon slot="start" :icon="imagesOutline" />
               갤러리
             </ion-button>
           </div>
+
+          <!-- 새로 추가한 사진은 개수만 표시 -->
+          <div v-if="pendingFiles.length" class="pending-count">
+            <span>새로 추가한 사진 {{ pendingFiles.length }}장</span>
+            <ion-button size="small" fill="clear" @click="clearPendingPhotos">모두 지우기</ion-button>
+          </div>
+
           <input
             ref="fileInput"
             type="file"
@@ -562,34 +503,6 @@ onIonViewWillEnter(load)
           </ion-button>
         </div>
       </template>
-
-      <!-- 앱 내장 사진 편집기: 촬영/선택 후 (원하면) 자르기·회전 → [선택]으로 확정 -->
-      <ion-modal :is-open="editorOpen" @did-dismiss="closeEditor">
-        <ion-header>
-          <ion-toolbar>
-            <ion-buttons slot="start">
-              <ion-button @click="closeEditor">취소</ion-button>
-            </ion-buttons>
-            <ion-title>사진 편집</ion-title>
-            <ion-buttons slot="end">
-              <ion-button @click="rotateEditor">
-                <ion-icon slot="icon-only" :icon="refreshOutline" />
-              </ion-button>
-              <ion-button strong @click="applyEdit">선택</ion-button>
-            </ion-buttons>
-          </ion-toolbar>
-        </ion-header>
-        <ion-content :scroll-y="false" class="editor-content">
-          <cropper
-            ref="cropperRef"
-            class="cropper"
-            :src="editSrc"
-            :default-size="defaultFullSize"
-            image-restriction="fit-area"
-          />
-          <p class="editor-hint">필요하면 자르거나 회전하고, [선택]을 눌러 추가하세요.</p>
-        </ion-content>
-      </ion-modal>
     </ion-content>
   </ion-page>
 </template>
@@ -646,30 +559,12 @@ onIonViewWillEnter(load)
   padding: 2px;
   font-size: 18px;
 }
-.edit-btn {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  border: none;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.55);
-  font-size: 12px;
-  padding: 3px 0;
-  cursor: pointer;
-}
-.editor-content {
-  --background: #000;
-}
-.cropper {
-  width: 100%;
-  height: 80vh;
-  background: #000;
-}
-.editor-hint {
-  color: #bbb;
-  text-align: center;
-  font-size: 13px;
-  margin: 8px;
+.pending-count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 8px;
+  color: var(--ion-color-medium);
+  font-size: 14px;
 }
 </style>
