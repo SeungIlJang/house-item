@@ -282,6 +282,32 @@ function reset() {
   images.value = []
 }
 
+// 등록 취소 → 홈 화면으로 (작성 중 내용이 있으면 확인)
+async function cancelForm() {
+  const hasInput = form.value.name.trim() || pendingPhotos.value.length > 0
+  if (hasInput) {
+    const alert = await alertController.create({
+      header: '등록 취소',
+      message: '작성 중인 내용이 사라집니다. 취소할까요?',
+      buttons: [
+        { text: '계속 작성', role: 'cancel' },
+        {
+          text: '취소하기',
+          role: 'destructive',
+          handler: () => {
+            reset()
+            router.push('/tabs/home')
+          },
+        },
+      ],
+    })
+    await alert.present()
+    return
+  }
+  reset()
+  router.push('/tabs/home')
+}
+
 async function save() {
   if (!form.value.homeId) {
     toast.error('집을 선택해주세요. 먼저 보관 장소에서 집을 등록하세요.')
@@ -348,8 +374,9 @@ onIonViewWillEnter(load)
   <ion-page>
     <ion-header>
       <ion-toolbar>
-        <ion-buttons slot="start" v-if="isEdit">
-          <ion-back-button default-href="/tabs/home" />
+        <ion-buttons slot="start">
+          <ion-back-button v-if="isEdit" default-href="/tabs/home" />
+          <ion-button v-else @click="cancelForm">취소</ion-button>
         </ion-buttons>
         <ion-title>{{ isEdit ? '물건 수정' : '물건 등록' }}</ion-title>
         <ion-buttons slot="end" v-if="homes.length > 0">
