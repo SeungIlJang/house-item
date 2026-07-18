@@ -56,6 +56,12 @@ const photoLoading = ref(false)
 const busy = computed(() => saving.value || photoLoading.value)
 const busyText = computed(() => (saving.value ? savingText.value : '사진 불러오는 중...'))
 
+// 오버레이(로딩바)를 실제 화면에 먼저 그린 뒤 다음 작업을 진행
+async function paintNow() {
+  await nextTick()
+  await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+}
+
 const homes = ref<Home[]>([])
 const rooms = ref<Room[]>([])
 const storages = ref<{ id: number; label: string }[]>([])
@@ -216,7 +222,7 @@ async function openGallery() {
   if (!result.photos.length) return
 
   photoLoading.value = true
-  await nextTick()
+  await paintNow() // 로딩바를 먼저 그린 뒤 사진 로드 시작
   try {
     // 준비되면 한꺼번에 추가 → 썸네일이 즉시 표시됨
     await Promise.all(result.photos.map((photo) => preloadImage(photo.webPath)))
@@ -350,9 +356,7 @@ async function save() {
       ? `저장 중... (사진 ${pendingPhotos.value.length}장 업로드)`
       : '저장 중...'
   saving.value = true
-  // 오버레이를 먼저 그린 뒤(다음 프레임) 무거운 작업 시작 → 즉시 표시
-  await nextTick()
-  await new Promise((r) => requestAnimationFrame(() => r(null)))
+  await paintNow() // 오버레이를 먼저 그린 뒤 무거운 작업 시작
   try {
     const payload = {
       name: form.value.name.trim(),
