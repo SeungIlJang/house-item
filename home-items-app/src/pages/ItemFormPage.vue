@@ -58,7 +58,16 @@ const storages = ref<{ id: number; label: string }[]>([])
 const categories = ref<Category[]>([])
 const tags = ref<Tag[]>([])
 const images = ref<ItemImage[]>([])
-const pendingFiles = ref<File[]>([])
+interface PendingPhoto {
+  file: File
+  source: CameraSource | null
+  url: string // 미리보기용 object URL
+}
+const pendingPhotos = ref<PendingPhoto[]>([])
+
+function makePhoto(file: File, source: CameraSource | null): PendingPhoto {
+  return { file, source, url: URL.createObjectURL(file) }
+}
 
 const form = ref({
   name: '',
@@ -137,36 +146,62 @@ const isNative = Capacitor.isNativePlatform()
 
 function onFilesSelected(ev: Event) {
   const input = ev.target as HTMLInputElement
-  if (input.files) pendingFiles.value.push(...Array.from(input.files))
+  if (input.files) {
+    for (const file of Array.from(input.files)) {
+      pendingPhotos.value.push(makePhoto(file, null))
+    }
+  }
   input.value = ''
 }
 
+// 카메라/갤러리에서 사진 1장을 가져와 File 로 변환. editing=true 면 폰 편집기 사용.
+async function capturePhoto(source: CameraSource, editing: boolean): Promise<File | null> {
+  const photo = await Camera.getPhoto({
+    source, // Camera(촬영) 또는 Photos(갤러리)
+    resultType: CameraResultType.Base64,
+    quality: 90,
+    correctOrientation: true,
+    allowEditing: editing,
+  })
+  if (!photo.base64String) return null
+  const format = photo.format || 'jpeg'
+  const dataUrl = `data:image/${format};base64,${photo.base64String}`
+  const blob = await (await fetch(dataUrl)).blob()
+  return new File([blob], `photo_${Date.now()}.${format}`, { type: `image/${format}` })
+}
+
+function isUserCancel(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message : ''
+  return /cancel/i.test(msg)
+}
+
+// 추가: 기본은 편집 없이 바로 첨부
 async function pickPhoto(source: CameraSource) {
   try {
-    const photo = await Camera.getPhoto({
-      source, // Camera(촬영) 또는 Photos(갤러리)
-      resultType: CameraResultType.Base64,
-      quality: 90,
-      correctOrientation: true,
-      allowEditing: true, // 첨부 전에 자르기/회전 등 편집
-    })
-    if (!photo.base64String) return
-    const format = photo.format || 'jpeg'
-    const dataUrl = `data:image/${format};base64,${photo.base64String}`
-    const blob = await (await fetch(dataUrl)).blob()
-    const file = new File([blob], `photo_${pendingFiles.value.length + 1}.${format}`, {
-      type: `image/${format}`,
-    })
-    pendingFiles.value.push(file)
+    const file = await capturePhoto(source, false)
+    if (file) pendingPhotos.value.push(makePhoto(file, source))
   } catch (e) {
-    // 사용자가 취소한 경우는 조용히 무시
-    const msg = e instanceof Error ? e.message : ''
-    if (!/cancel/i.test(msg)) toast.error('사진을 가져오지 못했습니다.')
+    if (!isUserCancel(e)) toast.error('사진을 가져오지 못했습니다.')
+  }
+}
+
+// 편집 버튼: 해당 사진을 폰 편집기로 편집(원래 소스에서 다시 선택/촬영하여 교체)
+async function editPhoto(index: number) {
+  const source = pendingPhotos.value[index]?.source ?? CameraSource.Photos
+  try {
+    const file = await capturePhoto(source, true)
+    if (file) {
+      URL.revokeObjectURL(pendingPhotos.value[index].url)
+      pendingPhotos.value[index] = makePhoto(file, source)
+    }
+  } catch (e) {
+    if (!isUserCancel(e)) toast.error('편집에 실패했습니다.')
   }
 }
 
 function removePendingFile(index: number) {
-  pendingFiles.value.splice(index, 1)
+  URL.revokeObjectURL(pendingPhotos.value[index].url)
+  pendingPhotos.value.splice(index, 1)
 }
 
 async function deleteExistingImage(imageId: number) {
@@ -228,7 +263,8 @@ function reset() {
     categoryId: null,
     tagIds: [],
   }
-  pendingFiles.value = []
+  pendingPhotos.value.forEach((p) => URL.revokeObjectURL(p.url))
+  pendingPhotos.value = []
   images.value = []
 }
 
@@ -264,8 +300,8 @@ async function save() {
       ? await itemApi.update(itemId.value as number, payload)
       : await itemApi.create(payload)
 
-    for (const file of pendingFiles.value) {
-      await itemApi.uploadImage(saved.id, file)
+    for (const photo of pendingPhotos.value) {
+      await itemApi.uploadImage(saved.id, photo.file)
     }
 
     toast.success(isEdit.value ? '수정되었습니다.' : '등록되었습니다.')
@@ -420,9 +456,12 @@ onIonViewWillEnter(load)
               <img :src="imageUrl(img.imageUrl)" alt="" />
               <ion-icon :icon="trashOutline" class="del" @click="deleteExistingImage(img.id)" />
             </div>
-            <div v-for="(f, idx) in pendingFiles" :key="'p' + idx" class="img-box pending">
-              <span>{{ f.name }}</span>
+            <div v-for="(p, idx) in pendingPhotos" :key="'p' + idx" class="img-box pending">
+              <img :src="p.url" alt="" />
               <ion-icon :icon="trashOutline" class="del" @click="removePendingFile(idx)" />
+              <button v-if="isNative" type="button" class="edit-btn" @click="editPhoto(idx)">
+                편집
+              </button>
             </div>
           </div>
 
@@ -493,14 +532,6 @@ onIonViewWillEnter(load)
   height: 100%;
   object-fit: cover;
 }
-.img-box.pending {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  padding: 4px;
-  text-align: center;
-}
 .del {
   position: absolute;
   top: 2px;
@@ -510,5 +541,17 @@ onIonViewWillEnter(load)
   border-radius: 50%;
   padding: 2px;
   font-size: 18px;
+}
+.edit-btn {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  border: none;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  font-size: 12px;
+  padding: 3px 0;
+  cursor: pointer;
 }
 </style>
