@@ -92,7 +92,7 @@ async function promptEdit(home: Home) {
 async function confirmDelete(home: Home) {
   const alert = await alertController.create({
     header: '집 삭제',
-    message: `'${home.name}'을 삭제하면 장소·수납공간·해당 물건도 함께 삭제됩니다.`,
+    message: `'${home.name}'을 삭제하면 보관장소·수납공간·해당 물건도 함께 삭제됩니다.`,
     buttons: [
       { text: '취소', role: 'cancel' },
       {

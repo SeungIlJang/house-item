@@ -49,7 +49,7 @@ export const homeApi = {
   },
 }
 
-// ----- 장소(방) -----
+// ----- 보관장소(방) -----
 export const roomApi = {
   async listByHome(homeId: number): Promise<Room[]> {
     return unwrap<Room[]>(await client.get(`/homes/${homeId}/rooms`))

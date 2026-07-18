@@ -206,8 +206,8 @@ async function save() {
   }
   if (!form.value.roomId) {
     const alert = await alertController.create({
-      header: '장소를 선택해주세요',
-      message: '물건을 등록하려면 보관 장소를 먼저 선택해야 합니다.',
+      header: '보관장소를 선택해주세요',
+      message: '물건을 등록하려면 보관장소를 먼저 선택해야 합니다.',
       buttons: ['확인'],
     })
     await alert.present()
@@ -279,10 +279,10 @@ onIonViewWillEnter(load)
         <ion-list v-else>
           <ion-item>
             <ion-select
-              label="장소 *"
+              label="보관장소 *"
               label-placement="stacked"
               v-model="form.roomId"
-              placeholder="장소를 선택하세요"
+              placeholder="보관장소를 선택하세요"
               @ion-change="onRoomChange"
             >
               <ion-select-option v-for="r in rooms" :key="r.id" :value="r.id">
