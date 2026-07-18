@@ -21,12 +21,21 @@ import {
   IonIcon,
   IonAccordion,
   IonAccordionGroup,
+  IonModal,
   alertController,
   onIonViewWillEnter,
 } from '@ionic/vue'
-import { trashOutline, chevronDownOutline, cameraOutline, imagesOutline } from 'ionicons/icons'
+import {
+  trashOutline,
+  chevronDownOutline,
+  cameraOutline,
+  imagesOutline,
+  refreshOutline,
+} from 'ionicons/icons'
 import { Capacitor } from '@capacitor/core'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
+import { Cropper } from 'vue-advanced-cropper'
+import 'vue-advanced-cropper/dist/style.css'
 import { homeApi, roomApi, storageApi, categoryApi, tagApi, itemApi, imageUrl } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
@@ -154,14 +163,14 @@ function onFilesSelected(ev: Event) {
   input.value = ''
 }
 
-// 카메라/갤러리에서 사진 1장을 가져와 File 로 변환. editing=true 면 폰 편집기 사용.
-async function capturePhoto(source: CameraSource, editing: boolean): Promise<File | null> {
+// 카메라/갤러리에서 사진 1장을 가져와 File 로 변환 (편집 없이 원본 그대로)
+async function capturePhoto(source: CameraSource): Promise<File | null> {
   const photo = await Camera.getPhoto({
     source, // Camera(촬영) 또는 Photos(갤러리)
     resultType: CameraResultType.Base64,
     quality: 90,
     correctOrientation: true,
-    allowEditing: editing,
+    allowEditing: false,
   })
   if (!photo.base64String) return null
   const format = photo.format || 'jpeg'
@@ -175,33 +184,84 @@ function isUserCancel(e: unknown): boolean {
   return /cancel/i.test(msg)
 }
 
-// 추가: 기본은 편집 없이 바로 첨부
+function removePendingFile(index: number) {
+  URL.revokeObjectURL(pendingPhotos.value[index].url)
+  pendingPhotos.value.splice(index, 1)
+}
+
+// ----- 앱 내장 사진 편집기(자르기/회전) -----
+// 흐름: 촬영/선택 → 편집 화면(선택 사항으로 편집) → [선택] 눌러 확정
+const editorOpen = ref(false)
+const editMode = ref<'add' | 'replace'>('add')
+const editIndex = ref(-1)
+const editSource = ref<CameraSource | null>(null)
+const editSrc = ref('') // 편집기에 보여줄 임시 object URL
+const cropperRef = ref<InstanceType<typeof Cropper> | null>(null)
+
+// 편집 화면을 기본 크롭 영역을 이미지 전체로 설정 → 그냥 [선택] 하면 원본 그대로
+function defaultFullSize({ imageSize }: { imageSize: { width: number; height: number } }) {
+  return { width: imageSize.width, height: imageSize.height }
+}
+
+// 촬영/갤러리 → 편집 화면 열기 (아직 목록에 추가하지 않음)
 async function pickPhoto(source: CameraSource) {
   try {
-    const file = await capturePhoto(source, false)
-    if (file) pendingPhotos.value.push(makePhoto(file, source))
+    const file = await capturePhoto(source)
+    if (!file) return
+    editMode.value = 'add'
+    editSource.value = source
+    editSrc.value = URL.createObjectURL(file)
+    editorOpen.value = true
   } catch (e) {
     if (!isUserCancel(e)) toast.error('사진을 가져오지 못했습니다.')
   }
 }
 
-// 편집 버튼: 해당 사진을 폰 편집기로 편집(원래 소스에서 다시 선택/촬영하여 교체)
-async function editPhoto(index: number) {
-  const source = pendingPhotos.value[index]?.source ?? CameraSource.Photos
-  try {
-    const file = await capturePhoto(source, true)
-    if (file) {
-      URL.revokeObjectURL(pendingPhotos.value[index].url)
-      pendingPhotos.value[index] = makePhoto(file, source)
-    }
-  } catch (e) {
-    if (!isUserCancel(e)) toast.error('편집에 실패했습니다.')
-  }
+// 이미 추가한 사진을 다시 편집
+function editPhoto(index: number) {
+  editMode.value = 'replace'
+  editIndex.value = index
+  editSource.value = pendingPhotos.value[index].source
+  editSrc.value = pendingPhotos.value[index].url
+  editorOpen.value = true
 }
 
-function removePendingFile(index: number) {
-  URL.revokeObjectURL(pendingPhotos.value[index].url)
-  pendingPhotos.value.splice(index, 1)
+function rotateEditor() {
+  cropperRef.value?.rotate(90)
+}
+
+function closeEditor() {
+  // add 모드에서 임시로 만든 object URL 정리 (replace 모드는 목록 url 을 재사용하므로 유지)
+  if (editMode.value === 'add' && editSrc.value) URL.revokeObjectURL(editSrc.value)
+  editorOpen.value = false
+  editIndex.value = -1
+}
+
+// [선택] — 현재 편집 상태(자르기/회전 반영)를 확정
+function applyEdit() {
+  const canvas = cropperRef.value?.getResult()?.canvas
+  if (!canvas) {
+    closeEditor()
+    return
+  }
+  canvas.toBlob(
+    (blob) => {
+      if (blob) {
+        const file = new File([blob], `photo_${Date.now()}.jpg`, { type: 'image/jpeg' })
+        const url = URL.createObjectURL(file)
+        if (editMode.value === 'replace' && editIndex.value >= 0) {
+          const old = pendingPhotos.value[editIndex.value]
+          URL.revokeObjectURL(old.url)
+          pendingPhotos.value[editIndex.value] = { file, source: old.source, url }
+        } else {
+          pendingPhotos.value.push({ file, source: editSource.value, url })
+        }
+      }
+      closeEditor()
+    },
+    'image/jpeg',
+    0.92,
+  )
 }
 
 async function deleteExistingImage(imageId: number) {
@@ -459,9 +519,7 @@ onIonViewWillEnter(load)
             <div v-for="(p, idx) in pendingPhotos" :key="'p' + idx" class="img-box pending">
               <img :src="p.url" alt="" />
               <ion-icon :icon="trashOutline" class="del" @click="removePendingFile(idx)" />
-              <button v-if="isNative" type="button" class="edit-btn" @click="editPhoto(idx)">
-                편집
-              </button>
+              <button type="button" class="edit-btn" @click="editPhoto(idx)">편집</button>
             </div>
           </div>
 
@@ -486,6 +544,34 @@ onIonViewWillEnter(load)
           </ion-button>
         </div>
       </template>
+
+      <!-- 앱 내장 사진 편집기: 촬영/선택 후 (원하면) 자르기·회전 → [선택]으로 확정 -->
+      <ion-modal :is-open="editorOpen" @did-dismiss="closeEditor">
+        <ion-header>
+          <ion-toolbar>
+            <ion-buttons slot="start">
+              <ion-button @click="closeEditor">취소</ion-button>
+            </ion-buttons>
+            <ion-title>사진 편집</ion-title>
+            <ion-buttons slot="end">
+              <ion-button @click="rotateEditor">
+                <ion-icon slot="icon-only" :icon="refreshOutline" />
+              </ion-button>
+              <ion-button strong @click="applyEdit">선택</ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+        </ion-header>
+        <ion-content :scroll-y="false" class="editor-content">
+          <cropper
+            ref="cropperRef"
+            class="cropper"
+            :src="editSrc"
+            :default-size="defaultFullSize"
+            image-restriction="fit-area"
+          />
+          <p class="editor-hint">필요하면 자르거나 회전하고, [선택]을 눌러 추가하세요.</p>
+        </ion-content>
+      </ion-modal>
     </ion-content>
   </ion-page>
 </template>
@@ -553,5 +639,19 @@ onIonViewWillEnter(load)
   font-size: 12px;
   padding: 3px 0;
   cursor: pointer;
+}
+.editor-content {
+  --background: #000;
+}
+.cropper {
+  width: 100%;
+  height: 80vh;
+  background: #000;
+}
+.editor-hint {
+  color: #bbb;
+  text-align: center;
+  font-size: 13px;
+  margin: 8px;
 }
 </style>
