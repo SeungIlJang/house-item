@@ -83,14 +83,21 @@ def test_upload_heic_is_converted(client: TestClient, auth_headers: dict, upload
 
 def test_delete_image(client: TestClient, auth_headers: dict, upload_tmp):
     item_id = _create_item(client, auth_headers)
-    image_id = _upload(client, auth_headers, item_id).json()["data"]["id"]
+    uploaded = _upload(client, auth_headers, item_id).json()["data"]
+    image_id = uploaded["id"]
+
+    # 저장된 실제 파일이 디스크에 존재
+    saved_file = upload_tmp / uploaded["imageUrl"].replace("/uploads/", "")
+    assert saved_file.exists()
 
     res = client.delete(f"/api/v1/items/{item_id}/images/{image_id}", headers=auth_headers)
     assert res.status_code == 200
 
+    # DB 레코드 제거 + 실제 파일도 삭제되어야 한다
     detail = client.get(f"/api/v1/items/{item_id}", headers=auth_headers).json()["data"]
     assert detail["images"] == []
     assert detail["thumbnailUrl"] is None
+    assert not saved_file.exists()
 
 
 def test_upload_ownership(client: TestClient, auth_headers: dict, other_headers: dict, upload_tmp):
