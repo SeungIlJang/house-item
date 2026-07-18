@@ -21,9 +21,10 @@ import {
   IonIcon,
   IonAccordion,
   IonAccordionGroup,
+  alertController,
   onIonViewWillEnter,
 } from '@ionic/vue'
-import { trashOutline } from 'ionicons/icons'
+import { trashOutline, chevronDownOutline } from 'ionicons/icons'
 import { homeApi, roomApi, storageApi, categoryApi, tagApi, itemApi, imageUrl } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
@@ -92,6 +93,35 @@ async function onHomeChange() {
   form.value.storageLocationId = null
   await loadRooms(form.value.homeId)
   storages.value = []
+}
+
+const selectedHomeName = computed(
+  () => homes.value.find((h) => h.id === form.value.homeId)?.name ?? '집 선택',
+)
+
+async function changeHome() {
+  const alert = await alertController.create({
+    header: '집 선택',
+    inputs: homes.value.map((h) => ({
+      type: 'radio' as const,
+      label: h.name,
+      value: h.id,
+      checked: h.id === form.value.homeId,
+    })),
+    buttons: [
+      { text: '취소', role: 'cancel' },
+      {
+        text: '선택',
+        handler: async (value: number) => {
+          if (value && value !== form.value.homeId) {
+            form.value.homeId = value
+            await onHomeChange()
+          }
+        },
+      },
+    ],
+  })
+  await alert.present()
 }
 
 async function onRoomChange() {
@@ -223,6 +253,12 @@ onIonViewWillEnter(load)
           <ion-back-button default-href="/tabs/home" />
         </ion-buttons>
         <ion-title>{{ isEdit ? '물건 수정' : '물건 등록' }}</ion-title>
+        <ion-buttons slot="end" v-if="homes.length > 0">
+          <ion-button @click="changeHome">
+            {{ selectedHomeName }}
+            <ion-icon slot="end" :icon="chevronDownOutline" />
+          </ion-button>
+        </ion-buttons>
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding-bottom">
@@ -247,18 +283,6 @@ onIonViewWillEnter(load)
             />
           </ion-item>
 
-          <ion-item>
-            <ion-select
-              label="집 *"
-              label-placement="stacked"
-              v-model="form.homeId"
-              @ion-change="onHomeChange"
-            >
-              <ion-select-option v-for="h in homes" :key="h.id" :value="h.id">
-                {{ h.name }}
-              </ion-select-option>
-            </ion-select>
-          </ion-item>
           <ion-item>
             <ion-select
               label="장소"
