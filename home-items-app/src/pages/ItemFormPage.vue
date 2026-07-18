@@ -89,11 +89,11 @@ async function loadStorages(roomId: number | null) {
 }
 
 async function onHomeChange() {
+  // 집을 바꾸면 장소는 다시 '선택' 상태로 (사용자가 직접 고르도록)
+  form.value.roomId = null
   form.value.storageLocationId = null
   await loadRooms(form.value.homeId)
-  // 장소는 필수이므로 첫 장소를 기본 선택
-  form.value.roomId = rooms.value[0]?.id ?? null
-  await loadStorages(form.value.roomId)
+  storages.value = []
 }
 
 const selectedHomeName = computed(
@@ -173,9 +173,7 @@ async function load() {
     } else if (homes.value.length > 0) {
       form.value.homeId = homes.value[0].id
       await loadRooms(form.value.homeId)
-      // 장소 필수 → 첫 장소 기본 선택
-      form.value.roomId = rooms.value[0]?.id ?? null
-      await loadStorages(form.value.roomId)
+      // 장소는 최초에 '선택' 상태 — 사용자가 직접 선택
     }
   } catch (e) {
     toast.error(extractErrorMessage(e))
@@ -207,7 +205,12 @@ async function save() {
     return
   }
   if (!form.value.roomId) {
-    toast.error('장소를 선택해주세요.')
+    const alert = await alertController.create({
+      header: '장소를 선택해주세요',
+      message: '물건을 등록하려면 보관 장소를 먼저 선택해야 합니다.',
+      buttons: ['확인'],
+    })
+    await alert.present()
     return
   }
   saving.value = true
