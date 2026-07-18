@@ -6,7 +6,8 @@
       "Bash(curl -s -m 90 https://home-items-api.onrender.com/health)",
       "Bash(curl -s -m 30 https://home-items-api.onrender.com/health/db)",
       "Bash(VITE_API_BASE_URL=https://home-items-api.onrender.com/api/v1 npm run build)",
-      "Bash(/Users/seungiljang/Library/Android/sdk/platform-tools/adb logcat *)"
+      "Bash(/Users/seungiljang/Library/Android/sdk/platform-tools/adb logcat *)",
+      "Bash(npx @capacitor/assets generate --android --iconBackgroundColor '#3880ff' --iconBackgroundColorDark '#3880ff' --splashBackgroundColor '#3880ff' --splashBackgroundColorDark '#3880ff')"
     ]
   }
 }
