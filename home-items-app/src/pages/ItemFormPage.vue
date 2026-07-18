@@ -24,7 +24,9 @@ import {
   alertController,
   onIonViewWillEnter,
 } from '@ionic/vue'
-import { trashOutline, chevronDownOutline } from 'ionicons/icons'
+import { trashOutline, chevronDownOutline, cameraOutline, imagesOutline } from 'ionicons/icons'
+import { Capacitor } from '@capacitor/core'
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { homeApi, roomApi, storageApi, categoryApi, tagApi, itemApi, imageUrl } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
@@ -130,10 +132,40 @@ async function onRoomChange() {
   await loadStorages(form.value.roomId)
 }
 
+// 웹(브라우저)에서만 파일 input 사용, 앱(네이티브)에서는 카메라 플러그인 사용
+const isNative = Capacitor.isNativePlatform()
+
 function onFilesSelected(ev: Event) {
   const input = ev.target as HTMLInputElement
   if (input.files) pendingFiles.value.push(...Array.from(input.files))
   input.value = ''
+}
+
+async function pickPhoto(source: CameraSource) {
+  try {
+    const photo = await Camera.getPhoto({
+      source, // Camera(촬영) 또는 Photos(갤러리)
+      resultType: CameraResultType.Base64,
+      quality: 90,
+      correctOrientation: true,
+    })
+    if (!photo.base64String) return
+    const format = photo.format || 'jpeg'
+    const dataUrl = `data:image/${format};base64,${photo.base64String}`
+    const blob = await (await fetch(dataUrl)).blob()
+    const file = new File([blob], `photo_${pendingFiles.value.length + 1}.${format}`, {
+      type: `image/${format}`,
+    })
+    pendingFiles.value.push(file)
+  } catch (e) {
+    // 사용자가 취소한 경우는 조용히 무시
+    const msg = e instanceof Error ? e.message : ''
+    if (!/cancel/i.test(msg)) toast.error('사진을 가져오지 못했습니다.')
+  }
+}
+
+function removePendingFile(index: number) {
+  pendingFiles.value.splice(index, 1)
 }
 
 async function deleteExistingImage(imageId: number) {
@@ -389,9 +421,23 @@ onIonViewWillEnter(load)
             </div>
             <div v-for="(f, idx) in pendingFiles" :key="'p' + idx" class="img-box pending">
               <span>{{ f.name }}</span>
+              <ion-icon :icon="trashOutline" class="del" @click="removePendingFile(idx)" />
             </div>
           </div>
-          <input type="file" accept="image/*" multiple @change="onFilesSelected" />
+
+          <!-- 앱(네이티브): 촬영 / 갤러리 버튼 -->
+          <div v-if="isNative" class="photo-actions">
+            <ion-button fill="outline" size="default" @click="pickPhoto(CameraSource.Camera)">
+              <ion-icon slot="start" :icon="cameraOutline" />
+              사진 촬영
+            </ion-button>
+            <ion-button fill="outline" size="default" @click="pickPhoto(CameraSource.Photos)">
+              <ion-icon slot="start" :icon="imagesOutline" />
+              갤러리
+            </ion-button>
+          </div>
+          <!-- 웹(브라우저): 파일 선택 -->
+          <input v-else type="file" accept="image/*" multiple @change="onFilesSelected" />
         </div>
 
         <div v-if="homes.length > 0" class="ion-padding">
@@ -425,6 +471,13 @@ onIonViewWillEnter(load)
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
+}
+.photo-actions {
+  display: flex;
+  gap: 8px;
+}
+.photo-actions ion-button {
+  flex: 1;
 }
 .img-box {
   position: relative;

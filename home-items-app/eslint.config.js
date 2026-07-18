@@ -14,7 +14,7 @@ const browserGlobals = {
 }
 
 export default [
-  { ignores: ['dist/**', 'node_modules/**', '**/*.d.ts'] },
+  { ignores: ['dist/**', 'node_modules/**', 'android/**', 'ios/**', '**/*.d.ts'] },
   js.configs.recommended,
   ...pluginVue.configs['flat/essential'],
   {
