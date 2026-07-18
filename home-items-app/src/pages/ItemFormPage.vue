@@ -203,7 +203,7 @@ function defaultFullSize({ imageSize }: { imageSize: { width: number; height: nu
   return { width: imageSize.width, height: imageSize.height }
 }
 
-// 촬영/갤러리 → 편집 화면 열기 (아직 목록에 추가하지 않음)
+// 촬영(카메라) → 1장 촬영 후 편집 화면 열기 (아직 목록에 추가하지 않음)
 async function pickPhoto(source: CameraSource) {
   try {
     const file = await capturePhoto(source)
@@ -212,6 +212,23 @@ async function pickPhoto(source: CameraSource) {
     editSource.value = source
     editSrc.value = URL.createObjectURL(file)
     editorOpen.value = true
+  } catch (e) {
+    if (!isUserCancel(e)) toast.error('사진을 가져오지 못했습니다.')
+  }
+}
+
+// 갤러리 → 여러 장 한 번에 선택 (선택한 사진들 바로 추가, 각자 편집 버튼으로 편집 가능)
+async function pickFromGallery() {
+  try {
+    const result = await Camera.pickImages({ quality: 90 })
+    for (const [i, photo] of result.photos.entries()) {
+      const blob = await (await fetch(photo.webPath)).blob()
+      const format = photo.format || 'jpg'
+      const file = new File([blob], `photo_${Date.now()}_${i}.${format}`, {
+        type: blob.type || `image/${format}`,
+      })
+      pendingPhotos.value.push(makePhoto(file, CameraSource.Photos))
+    }
   } catch (e) {
     if (!isUserCancel(e)) toast.error('사진을 가져오지 못했습니다.')
   }
@@ -529,7 +546,7 @@ onIonViewWillEnter(load)
               <ion-icon slot="start" :icon="cameraOutline" />
               사진 촬영
             </ion-button>
-            <ion-button fill="outline" size="default" @click="pickPhoto(CameraSource.Photos)">
+            <ion-button fill="outline" size="default" @click="pickFromGallery">
               <ion-icon slot="start" :icon="imagesOutline" />
               갤러리
             </ion-button>
