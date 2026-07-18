@@ -31,6 +31,7 @@ interface FlatNode {
   id: number
   name: string
   depth: number
+  parentId: number | null
 }
 
 const route = useRoute()
@@ -43,7 +44,7 @@ const nodes = ref<FlatNode[]>([])
 function flatten(tree: StorageTreeNode[], depth = 0): FlatNode[] {
   const out: FlatNode[] = []
   for (const n of tree) {
-    out.push({ id: n.id, name: n.name, depth })
+    out.push({ id: n.id, name: n.name, depth, parentId: n.parentId })
     if (n.children?.length) out.push(...flatten(n.children, depth + 1))
   }
   return out
@@ -72,6 +73,30 @@ async function promptCreate(parentId: number | null, headerText: string) {
           if (!data.name?.trim()) return
           try {
             await storageApi.create(roomId, data.name.trim(), parentId)
+            await load()
+          } catch (e) {
+            toast.error(extractErrorMessage(e))
+          }
+        },
+      },
+    ],
+  })
+  await alert.present()
+}
+
+async function promptEdit(node: FlatNode) {
+  const alert = await alertController.create({
+    header: '수납공간 수정',
+    inputs: [{ name: 'name', value: node.name }],
+    buttons: [
+      { text: '취소', role: 'cancel' },
+      {
+        text: '저장',
+        handler: async (data) => {
+          if (!data.name?.trim()) return
+          try {
+            // 이름만 변경하고 상위 위치(parentId)는 그대로 유지
+            await storageApi.update(node.id, data.name.trim(), node.parentId)
             await load()
           } catch (e) {
             toast.error(extractErrorMessage(e))
@@ -145,6 +170,7 @@ onIonViewWillEnter(load)
               </ion-button>
             </ion-item>
             <ion-item-options side="end">
+              <ion-item-option @click="promptEdit(n)">수정</ion-item-option>
               <ion-item-option color="danger" @click="confirmDelete(n)">삭제</ion-item-option>
             </ion-item-options>
           </ion-item-sliding>
