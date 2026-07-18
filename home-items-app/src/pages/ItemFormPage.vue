@@ -59,8 +59,13 @@ const storages = ref<{ id: number; label: string }[]>([])
 const categories = ref<Category[]>([])
 const tags = ref<Tag[]>([])
 const images = ref<ItemImage[]>([])
-// 새로 추가한 사진(저장 시 업로드). 미리보기 없이 파일만 담는다.
-const pendingFiles = ref<File[]>([])
+// 새로 추가한 사진. previewUrl 로 썸네일 표시, 저장 시 file(없으면 fetchUrl 로 변환) 업로드.
+interface PendingPhoto {
+  previewUrl: string // <img> 표시용 (촬영: object URL, 갤러리: webPath)
+  file: File | null // 있으면 그대로 업로드
+  fetchUrl?: string // 저장 시 여기서 파일을 가져옴(갤러리 webPath)
+}
+const pendingPhotos = ref<PendingPhoto[]>([])
 
 const form = ref({
   name: '',
@@ -148,7 +153,9 @@ const fileInput = ref<HTMLInputElement | null>(null)
 function onFilesSelected(ev: Event) {
   const input = ev.target as HTMLInputElement
   if (input.files) {
-    for (const file of Array.from(input.files)) pendingFiles.value.push(file)
+    for (const file of Array.from(input.files)) {
+      pendingPhotos.value.push({ previewUrl: URL.createObjectURL(file), file })
+    }
   }
   input.value = ''
 }
@@ -162,7 +169,7 @@ function base64ToFile(base64: string, format?: string): File {
   return new File([bytes], `photo_${Date.now()}.${format || 'jpg'}`, { type })
 }
 
-// 촬영 → 사진 1장 추가 (미리보기 없이 목록에만 담김)
+// 촬영 → 사진 1장 추가 (썸네일 즉시 표시)
 async function addFromCamera() {
   try {
     const photo = await Camera.getPhoto({
@@ -172,14 +179,15 @@ async function addFromCamera() {
       correctOrientation: true,
     })
     if (photo.base64String) {
-      pendingFiles.value.push(base64ToFile(photo.base64String, photo.format))
+      const file = base64ToFile(photo.base64String, photo.format)
+      pendingPhotos.value.push({ previewUrl: URL.createObjectURL(file), file })
     }
   } catch (e) {
     if (!isUserCancel(e)) toast.error('사진을 가져오지 못했습니다.')
   }
 }
 
-// 갤러리 → 여러 장 선택 (앱: Capacitor, 웹: 파일 입력)
+// 갤러리 → 여러 장 선택. 미리보기는 webPath 로 즉시 표시, 파일은 저장 시 변환.
 async function openGallery() {
   if (!isNative) {
     fileInput.value?.click()
@@ -192,20 +200,23 @@ async function openGallery() {
     if (!isUserCancel(e)) toast.error('갤러리를 열지 못했습니다.')
     return
   }
-  for (const [i, photo] of result.photos.entries()) {
-    try {
-      const blob = await (await fetch(photo.webPath)).blob()
-      pendingFiles.value.push(
-        new File([blob], `photo_${Date.now()}_${i}.jpg`, { type: blob.type || 'image/jpeg' }),
-      )
-    } catch {
-      // 개별 실패는 건너뜀
-    }
+  for (const photo of result.photos) {
+    pendingPhotos.value.push({ previewUrl: photo.webPath, file: null, fetchUrl: photo.webPath })
   }
 }
 
+function revokeIfBlob(url: string) {
+  if (url.startsWith('blob:')) URL.revokeObjectURL(url)
+}
+
+function removePendingPhoto(index: number) {
+  revokeIfBlob(pendingPhotos.value[index].previewUrl)
+  pendingPhotos.value.splice(index, 1)
+}
+
 function clearPendingPhotos() {
-  pendingFiles.value = []
+  pendingPhotos.value.forEach((p) => revokeIfBlob(p.previewUrl))
+  pendingPhotos.value = []
 }
 
 async function deleteExistingImage(imageId: number) {
@@ -267,7 +278,7 @@ function reset() {
     categoryId: null,
     tagIds: [],
   }
-  pendingFiles.value = []
+  clearPendingPhotos()
   images.value = []
 }
 
@@ -287,8 +298,8 @@ async function save() {
   }
   saving.value = true
   const loadingText =
-    pendingFiles.value.length > 0
-      ? `저장 중... (사진 ${pendingFiles.value.length}장 업로드)`
+    pendingPhotos.value.length > 0
+      ? `저장 중... (사진 ${pendingPhotos.value.length}장 업로드)`
       : '저장 중...'
   const loading = await loadingController.create({ message: loadingText })
   await loading.present()
@@ -309,8 +320,13 @@ async function save() {
       ? await itemApi.update(itemId.value as number, payload)
       : await itemApi.create(payload)
 
-    for (const file of pendingFiles.value) {
-      await itemApi.uploadImage(saved.id, file)
+    for (const p of pendingPhotos.value) {
+      let file = p.file
+      if (!file && p.fetchUrl) {
+        const blob = await (await fetch(p.fetchUrl)).blob()
+        file = new File([blob], `photo_${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' })
+      }
+      if (file) await itemApi.uploadImage(saved.id, file)
     }
 
     toast.success(isEdit.value ? '수정되었습니다.' : '등록되었습니다.')
@@ -462,11 +478,16 @@ onIonViewWillEnter(load)
         <div v-if="homes.length > 0" class="ion-padding-horizontal">
           <ion-label class="section">사진</ion-label>
 
-          <!-- 이미 저장된 사진(수정 화면)만 표시 -->
-          <div v-if="images.length" class="images">
+          <div v-if="images.length || pendingPhotos.length" class="images">
+            <!-- 이미 저장된 사진(수정 화면) -->
             <div v-for="img in images" :key="img.id" class="img-box">
               <img :src="imageUrl(img.imageUrl)" alt="" />
               <ion-icon :icon="trashOutline" class="del" @click="deleteExistingImage(img.id)" />
+            </div>
+            <!-- 새로 추가한 사진 미리보기 -->
+            <div v-for="(p, idx) in pendingPhotos" :key="'p' + idx" class="img-box">
+              <img :src="p.previewUrl" alt="" />
+              <ion-icon :icon="trashOutline" class="del" @click="removePendingPhoto(idx)" />
             </div>
           </div>
 
@@ -479,12 +500,6 @@ onIonViewWillEnter(load)
               <ion-icon slot="start" :icon="imagesOutline" />
               갤러리
             </ion-button>
-          </div>
-
-          <!-- 새로 추가한 사진은 개수만 표시 -->
-          <div v-if="pendingFiles.length" class="pending-count">
-            <span>새로 추가한 사진 {{ pendingFiles.length }}장</span>
-            <ion-button size="small" fill="clear" @click="clearPendingPhotos">모두 지우기</ion-button>
           </div>
 
           <input
