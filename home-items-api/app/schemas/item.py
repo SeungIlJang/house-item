@@ -10,7 +10,8 @@ from app.schemas.tag import TagResponse
 
 
 class ItemBase(CamelModel):
-    name: str = Field(min_length=1, max_length=200)
+    # 이름은 선택. 장소(room_id)만 필수로 취급(프론트에서 강제).
+    name: str = Field(default="", max_length=200)
     description: str | None = None
     quantity: int = Field(default=1, ge=0)
     memo: str | None = None

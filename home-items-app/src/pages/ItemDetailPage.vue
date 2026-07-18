@@ -103,7 +103,7 @@ onIonViewWillEnter(load)
         <div v-else class="no-image">📦</div>
 
         <div class="ion-padding">
-          <h1 class="name">{{ item.name }}</h1>
+          <h1 class="name">{{ item.name || '(이름 없음)' }}</h1>
           <div class="chips">
             <ion-chip v-if="item.categoryName" color="primary">
               <ion-label>{{ item.categoryName }}</ion-label>

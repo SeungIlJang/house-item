@@ -14,7 +14,7 @@ defineProps<{ item: Item }>()
         <div v-else class="thumb-placeholder">📦</div>
       </ion-thumbnail>
       <div class="info">
-        <div class="name">{{ item.name }}</div>
+        <div class="name">{{ item.name || '(이름 없음)' }}</div>
         <div class="meta">
           <ion-chip v-if="item.categoryName" color="primary" class="mini-chip">
             <ion-label>{{ item.categoryName }}</ion-label>

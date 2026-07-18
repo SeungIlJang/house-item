@@ -54,6 +54,18 @@ def test_item_create_full(client: TestClient, auth_headers: dict):
     assert [t["name"] for t in data["tags"]] == ["즐겨찾기"]
 
 
+def test_item_create_without_name(client: TestClient, auth_headers: dict):
+    # 이름은 선택 항목 — 이름 없이도 등록 가능
+    ids = _setup(client, auth_headers)
+    res = client.post(
+        "/api/v1/items",
+        json={"homeId": ids["home_id"], "roomId": ids["room_id"]},
+        headers=auth_headers,
+    )
+    assert res.status_code == 201
+    assert res.json()["data"]["name"] == ""
+
+
 def test_item_list_pagination(client: TestClient, auth_headers: dict):
     ids = _setup(client, auth_headers)
     for i in range(3):

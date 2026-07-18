@@ -89,10 +89,11 @@ async function loadStorages(roomId: number | null) {
 }
 
 async function onHomeChange() {
-  form.value.roomId = null
   form.value.storageLocationId = null
   await loadRooms(form.value.homeId)
-  storages.value = []
+  // 장소는 필수이므로 첫 장소를 기본 선택
+  form.value.roomId = rooms.value[0]?.id ?? null
+  await loadStorages(form.value.roomId)
 }
 
 const selectedHomeName = computed(
@@ -172,6 +173,9 @@ async function load() {
     } else if (homes.value.length > 0) {
       form.value.homeId = homes.value[0].id
       await loadRooms(form.value.homeId)
+      // 장소 필수 → 첫 장소 기본 선택
+      form.value.roomId = rooms.value[0]?.id ?? null
+      await loadStorages(form.value.roomId)
     }
   } catch (e) {
     toast.error(extractErrorMessage(e))
@@ -198,12 +202,12 @@ function reset() {
 }
 
 async function save() {
-  if (!form.value.name.trim()) {
-    toast.error('물건 이름을 입력해주세요.')
-    return
-  }
   if (!form.value.homeId) {
     toast.error('집을 선택해주세요. 먼저 보관 장소에서 집을 등록하세요.')
+    return
+  }
+  if (!form.value.roomId) {
+    toast.error('장소를 선택해주세요.')
     return
   }
   saving.value = true
@@ -271,7 +275,25 @@ onIonViewWillEnter(load)
 
         <ion-list v-else>
           <ion-item>
-            <ion-input label="이름 *" label-placement="stacked" v-model="form.name" placeholder="예: 휴대전화 충전기" />
+            <ion-select
+              label="장소 *"
+              label-placement="stacked"
+              v-model="form.roomId"
+              placeholder="장소를 선택하세요"
+              @ion-change="onRoomChange"
+            >
+              <ion-select-option v-for="r in rooms" :key="r.id" :value="r.id">
+                {{ r.name }}
+              </ion-select-option>
+            </ion-select>
+          </ion-item>
+          <ion-item>
+            <ion-input
+              label="이름"
+              label-placement="stacked"
+              v-model="form.name"
+              placeholder="예: 휴대전화 충전기 (선택)"
+            />
           </ion-item>
           <ion-item>
             <ion-input
@@ -281,21 +303,6 @@ onIonViewWillEnter(load)
               min="0"
               v-model.number="form.quantity"
             />
-          </ion-item>
-
-          <ion-item>
-            <ion-select
-              label="장소"
-              label-placement="stacked"
-              v-model="form.roomId"
-              placeholder="선택 안 함"
-              @ion-change="onRoomChange"
-            >
-              <ion-select-option :value="null">선택 안 함</ion-select-option>
-              <ion-select-option v-for="r in rooms" :key="r.id" :value="r.id">
-                {{ r.name }}
-              </ion-select-option>
-            </ion-select>
           </ion-item>
           <ion-item>
             <ion-textarea label="설명" label-placement="stacked" v-model="form.description" :auto-grow="true" />
