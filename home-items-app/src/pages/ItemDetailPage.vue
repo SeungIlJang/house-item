@@ -16,10 +16,15 @@ import {
   IonList,
   IonItem,
   IonSpinner,
+  IonModal,
   alertController,
   onIonViewWillEnter,
 } from '@ionic/vue'
-import { createOutline, trashOutline } from 'ionicons/icons'
+import { createOutline, trashOutline, closeOutline } from 'ionicons/icons'
+import { Swiper, SwiperSlide } from 'swiper/vue'
+import { Zoom } from 'swiper/modules'
+import 'swiper/css'
+import 'swiper/css/zoom'
 import { itemApi, imageUrl } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
@@ -31,6 +36,15 @@ const toast = useToast()
 
 const loading = ref(true)
 const item = ref<Item | null>(null)
+
+// 전체화면 사진 뷰어
+const viewerOpen = ref(false)
+const viewerIndex = ref(0)
+
+function openViewer(index: number) {
+  viewerIndex.value = index
+  viewerOpen.value = true
+}
 
 async function load() {
   loading.value = true
@@ -94,10 +108,11 @@ onIonViewWillEnter(load)
       <template v-else>
         <div v-if="item.images.length" class="gallery">
           <img
-            v-for="img in item.images"
+            v-for="(img, idx) in item.images"
             :key="img.id"
             :src="imageUrl(img.imageUrl)"
             :alt="item.name"
+            @click="openViewer(idx)"
           />
         </div>
         <div v-else class="no-image">📦</div>
@@ -153,6 +168,28 @@ onIonViewWillEnter(load)
           </ion-item>
         </ion-list>
       </template>
+
+      <!-- 전체화면 사진 뷰어 (핀치/더블탭 확대, 좌우 넘김) -->
+      <ion-modal :is-open="viewerOpen" @did-dismiss="viewerOpen = false">
+        <div class="viewer">
+          <ion-button class="viewer-close" fill="clear" @click="viewerOpen = false">
+            <ion-icon slot="icon-only" :icon="closeOutline" />
+          </ion-button>
+          <swiper
+            v-if="item"
+            class="viewer-swiper"
+            :modules="[Zoom]"
+            :zoom="true"
+            :initial-slide="viewerIndex"
+          >
+            <swiper-slide v-for="img in item.images" :key="img.id">
+              <div class="swiper-zoom-container">
+                <img :src="imageUrl(img.imageUrl)" :alt="item.name" />
+              </div>
+            </swiper-slide>
+          </swiper>
+        </div>
+      </ion-modal>
     </ion-content>
   </ion-page>
 </template>
@@ -173,6 +210,38 @@ onIonViewWillEnter(load)
   height: 200px;
   border-radius: 12px;
   object-fit: cover;
+  cursor: pointer;
+}
+
+/* 전체화면 뷰어 */
+.viewer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+.viewer-swiper {
+  width: 100%;
+  height: 100%;
+}
+.viewer-swiper .swiper-zoom-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.viewer-swiper img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.viewer-close {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  right: 8px;
+  z-index: 10;
+  --color: #fff;
 }
 .no-image {
   display: flex;
