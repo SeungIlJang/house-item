@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(uv run *)"
+      "Bash(uv run *)",
+      "Bash(git commit -q -m 'docs: step-by-step Render deployment guide *)",
+      "Bash(curl -s -m 90 https://home-items-api.onrender.com/health)",
+      "Bash(curl -s -m 30 https://home-items-api.onrender.com/health/db)",
+      "Bash(VITE_API_BASE_URL=https://home-items-api.onrender.com/api/v1 npm run build)"
     ]
   }
 }

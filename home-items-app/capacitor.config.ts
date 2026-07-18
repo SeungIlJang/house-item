@@ -5,9 +5,8 @@ const config: CapacitorConfig = {
   appName: '집안의모든것',
   webDir: 'dist',
   server: {
-    // 개발 PC 의 HTTP 백엔드(LAN)에 접속하기 위해 http 스킴 + cleartext 허용
-    androidScheme: 'http',
-    cleartext: true,
+    // 운영: 백엔드가 https 이므로 https 스킴 사용(cleartext 불필요)
+    androidScheme: 'https',
   },
 }
 
