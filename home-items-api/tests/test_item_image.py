@@ -13,7 +13,8 @@ _PNG_BYTES = base64.b64decode(
 
 @pytest.fixture()
 def upload_tmp(monkeypatch, tmp_path):
-    """업로드 경로를 임시 디렉터리로 바꿔 실제 uploads 폴더를 건드리지 않는다."""
+    """테스트는 항상 로컬 저장소 + 임시 디렉터리 사용 (.env 가 s3 여도 R2 를 건드리지 않도록)."""
+    monkeypatch.setattr(config.settings, "storage_backend", "local")
     monkeypatch.setattr(config.settings, "upload_dir", str(tmp_path))
     return tmp_path
 

@@ -4,6 +4,7 @@
 비밀키·DB 접속 정보를 코드에 하드코딩하지 않기 위해 환경 변수로 관리합니다.
 """
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +14,20 @@ class Settings(BaseSettings):
 
     # 데이터베이스 (필수)
     database_url: str
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_database_url(cls, value: str) -> str:
+        """배포 플랫폼(Render/Neon/Heroku 등)이 주는 URL 을 psycopg 드라이버로 통일.
+
+        postgres:// 또는 postgresql:// → postgresql+psycopg://
+        (이미 +psycopg 가 붙어 있으면 그대로 둔다)
+        """
+        if value.startswith("postgres://"):
+            value = "postgresql://" + value[len("postgres://") :]
+        if value.startswith("postgresql://"):
+            value = "postgresql+psycopg://" + value[len("postgresql://") :]
+        return value
 
     # JWT
     jwt_secret_key: str = "change-me"

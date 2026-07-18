@@ -1,0 +1,45 @@
+# Render Blueprint — 백엔드(FastAPI) + PostgreSQL 자동 구성
+# 사용법: Render 대시보드 → New → Blueprint → 이 저장소 연결 → Apply
+# R2(S3) 비밀값은 Blueprint 로 만들어진 뒤 대시보드에서 채웁니다(sync: false).
+
+databases:
+  - name: home-items-db
+    plan: free
+    databaseName: home_items
+    user: home_items
+
+services:
+  - type: web
+    name: home-items-api
+    runtime: docker
+    plan: free
+    rootDir: home-items-api
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: JWT_SECRET_KEY
+        generateValue: true # 강력한 무작위 값 자동 생성
+      - key: DATABASE_URL
+        fromDatabase:
+          name: home-items-db
+          property: connectionString
+      - key: CORS_ORIGINS
+        value: https://localhost # 안드로이드 앱 웹뷰 출처(https 스킴). 웹 호스팅 시 도메인 추가
+      - key: STORAGE_BACKEND
+        value: s3
+      - key: S3_REGION
+        value: auto
+      # ↓ R2 비밀값은 대시보드에서 입력 (Environment 탭)
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_PUBLIC_BASE_URL
+        sync: false

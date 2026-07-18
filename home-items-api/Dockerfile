@@ -19,5 +19,5 @@ COPY . .
 
 EXPOSE 8000
 
-# 마이그레이션 적용 후 서버 실행
-CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# 마이그레이션 적용 후 서버 실행 (배포 플랫폼이 주는 $PORT 사용, 없으면 8000)
+CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
