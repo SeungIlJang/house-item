@@ -22,8 +22,19 @@ class Settings(BaseSettings):
     # CORS 허용 출처 (쉼표로 구분한 문자열)
     cors_origins: str = "http://localhost:5173"
 
-    # 이미지 업로드 경로
+    # 이미지 저장 방식: local | s3
+    storage_backend: str = "local"
+
+    # 로컬 이미지 업로드 경로 (storage_backend=local)
     upload_dir: str = "uploads"
+
+    # S3/R2 설정 (storage_backend=s3). Cloudflare R2 도 S3 호환.
+    s3_endpoint_url: str = ""  # 예: https://<account>.r2.cloudflarestorage.com
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = ""
+    s3_bucket: str = ""
+    s3_region: str = "auto"
+    s3_public_base_url: str = ""  # 공개 접근 URL 예: https://pub-xxxx.r2.dev
 
     # .env 는 저장소 루트(../.env) 또는 현재 폴더(.env)에서 찾습니다.
     model_config = SettingsConfigDict(

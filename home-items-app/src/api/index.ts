@@ -182,9 +182,12 @@ export const itemApi = {
   },
 }
 
-// 이미지 절대 URL (백엔드 정적 경로)
+// 이미지 URL 계산
+// - R2/S3: 이미 절대 URL(https://...)이면 그대로 사용
+// - 로컬 저장: 상대 경로(/uploads/...) 이면 API 호스트를 앞에 붙임
 export function imageUrl(path: string | null): string | undefined {
   if (!path) return undefined
+  if (/^https?:\/\//.test(path)) return path
   const base = import.meta.env.VITE_API_BASE_URL.replace(/\/api\/v1$/, '')
   return `${base}${path}`
 }
