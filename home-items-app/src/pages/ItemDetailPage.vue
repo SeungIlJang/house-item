@@ -207,7 +207,7 @@ onIonViewWillEnter(load)
   padding: 12px;
 }
 .gallery img {
-  height: 200px;
+  height: 220px;
   border-radius: 12px;
   object-fit: cover;
   cursor: pointer;

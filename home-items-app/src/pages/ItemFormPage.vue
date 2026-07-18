@@ -219,19 +219,28 @@ async function pickPhoto(source: CameraSource) {
 
 // 갤러리 → 여러 장 한 번에 선택 (선택한 사진들 바로 추가, 각자 편집 버튼으로 편집 가능)
 async function pickFromGallery() {
+  let result
   try {
-    const result = await Camera.pickImages({ quality: 90 })
-    for (const [i, photo] of result.photos.entries()) {
+    result = await Camera.pickImages({ quality: 90 })
+  } catch (e) {
+    if (!isUserCancel(e)) toast.error('갤러리를 열지 못했습니다.')
+    return
+  }
+  let failed = 0
+  for (const [i, photo] of result.photos.entries()) {
+    try {
       const blob = await (await fetch(photo.webPath)).blob()
       const format = photo.format || 'jpg'
       const file = new File([blob], `photo_${Date.now()}_${i}.${format}`, {
         type: blob.type || `image/${format}`,
       })
-      pendingPhotos.value.push(makePhoto(file, CameraSource.Photos))
+      // 미리보기는 Capacitor 가 준 webPath 를 그대로 사용(가장 안정적으로 표시됨)
+      pendingPhotos.value.push({ file, source: CameraSource.Photos, url: photo.webPath })
+    } catch {
+      failed += 1
     }
-  } catch (e) {
-    if (!isUserCancel(e)) toast.error('사진을 가져오지 못했습니다.')
   }
+  if (failed > 0) toast.error(`사진 ${failed}장을 불러오지 못했어요.`)
 }
 
 // 이미 추가한 사진을 다시 편집
