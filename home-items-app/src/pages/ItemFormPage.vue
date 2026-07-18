@@ -59,7 +59,6 @@ const form = ref({
   name: '',
   quantity: 1,
   description: '',
-  memo: '',
   purchaseDate: '',
   expirationDate: '',
   homeId: null as number | null,
@@ -127,7 +126,6 @@ async function load() {
         name: item.name,
         quantity: item.quantity,
         description: item.description ?? '',
-        memo: item.memo ?? '',
         purchaseDate: item.purchaseDate ?? '',
         expirationDate: item.expirationDate ?? '',
         homeId: item.homeId,
@@ -155,7 +153,6 @@ function reset() {
     name: '',
     quantity: 1,
     description: '',
-    memo: '',
     purchaseDate: '',
     expirationDate: '',
     homeId: homes.value[0]?.id ?? null,
@@ -183,7 +180,6 @@ async function save() {
       name: form.value.name.trim(),
       quantity: form.value.quantity,
       description: form.value.description || null,
-      memo: form.value.memo || null,
       purchaseDate: form.value.purchaseDate || null,
       expirationDate: form.value.expirationDate || null,
       homeId: form.value.homeId,
@@ -318,9 +314,6 @@ onIonViewWillEnter(load)
 
           <ion-item>
             <ion-textarea label="설명" label-placement="stacked" v-model="form.description" :auto-grow="true" />
-          </ion-item>
-          <ion-item>
-            <ion-textarea label="메모" label-placement="stacked" v-model="form.memo" :auto-grow="true" />
           </ion-item>
           <ion-item>
             <ion-input label="구매일" label-placement="stacked" type="date" v-model="form.purchaseDate" />
