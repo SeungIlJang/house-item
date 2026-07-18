@@ -202,14 +202,16 @@ onIonViewWillEnter(load)
 }
 .gallery {
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
+  flex-direction: column;
+  gap: 10px;
   padding: 12px;
 }
 .gallery img {
-  height: 220px;
+  width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
   border-radius: 12px;
-  object-fit: cover;
+  background: var(--ion-color-light);
   cursor: pointer;
 }
 
