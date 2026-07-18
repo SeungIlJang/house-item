@@ -11,6 +11,8 @@
     "lint": "eslint . --ext .vue,.ts"
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
     "@ionic/vue": "^8.4.0",
     "@ionic/vue-router": "^8.4.0",
     "axios": "^1.7.9",
@@ -20,6 +22,7 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.1",
     "@eslint/js": "^9.39.5",
     "@types/node": "^20.19.43",
     "@typescript-eslint/parser": "^8.64.0",
