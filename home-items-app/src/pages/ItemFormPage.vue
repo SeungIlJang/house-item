@@ -19,6 +19,8 @@ import {
   IonLabel,
   IonSpinner,
   IonIcon,
+  IonAccordion,
+  IonAccordionGroup,
   onIonViewWillEnter,
 } from '@ionic/vue'
 import { trashOutline } from 'ionicons/icons'
@@ -271,57 +273,78 @@ onIonViewWillEnter(load)
               </ion-select-option>
             </ion-select>
           </ion-item>
-          <ion-item v-if="storages.length">
-            <ion-select
-              label="수납 위치"
-              label-placement="stacked"
-              v-model="form.storageLocationId"
-              placeholder="선택 안 함"
-            >
-              <ion-select-option :value="null">선택 안 함</ion-select-option>
-              <ion-select-option v-for="s in storages" :key="s.id" :value="s.id">
-                {{ s.label }}
-              </ion-select-option>
-            </ion-select>
-          </ion-item>
-
-          <ion-item>
-            <ion-select
-              label="카테고리"
-              label-placement="stacked"
-              v-model="form.categoryId"
-              placeholder="선택 안 함"
-            >
-              <ion-select-option :value="null">선택 안 함</ion-select-option>
-              <ion-select-option v-for="c in categories" :key="c.id" :value="c.id">
-                {{ c.name }}
-              </ion-select-option>
-            </ion-select>
-          </ion-item>
-          <ion-item>
-            <ion-select
-              label="태그"
-              label-placement="stacked"
-              :multiple="true"
-              v-model="form.tagIds"
-              placeholder="선택 안 함"
-            >
-              <ion-select-option v-for="t in tags" :key="t.id" :value="t.id">
-                {{ t.name }}
-              </ion-select-option>
-            </ion-select>
-          </ion-item>
-
           <ion-item>
             <ion-textarea label="설명" label-placement="stacked" v-model="form.description" :auto-grow="true" />
           </ion-item>
-          <ion-item>
-            <ion-input label="구매일" label-placement="stacked" type="date" v-model="form.purchaseDate" />
-          </ion-item>
-          <ion-item>
-            <ion-input label="유효기간" label-placement="stacked" type="date" v-model="form.expirationDate" />
-          </ion-item>
         </ion-list>
+
+        <!-- 상세 정보: 기본은 접혀 있고 필요할 때 펼쳐서 입력 -->
+        <ion-accordion-group>
+          <ion-accordion value="detail">
+            <ion-item slot="header">
+              <ion-label>상세 정보 (선택)</ion-label>
+            </ion-item>
+            <div slot="content">
+              <ion-list>
+                <ion-item v-if="storages.length">
+                  <ion-select
+                    label="수납 위치"
+                    label-placement="stacked"
+                    v-model="form.storageLocationId"
+                    placeholder="선택 안 함"
+                  >
+                    <ion-select-option :value="null">선택 안 함</ion-select-option>
+                    <ion-select-option v-for="s in storages" :key="s.id" :value="s.id">
+                      {{ s.label }}
+                    </ion-select-option>
+                  </ion-select>
+                </ion-item>
+                <ion-item>
+                  <ion-select
+                    label="카테고리"
+                    label-placement="stacked"
+                    v-model="form.categoryId"
+                    placeholder="선택 안 함"
+                  >
+                    <ion-select-option :value="null">선택 안 함</ion-select-option>
+                    <ion-select-option v-for="c in categories" :key="c.id" :value="c.id">
+                      {{ c.name }}
+                    </ion-select-option>
+                  </ion-select>
+                </ion-item>
+                <ion-item>
+                  <ion-select
+                    label="태그"
+                    label-placement="stacked"
+                    :multiple="true"
+                    v-model="form.tagIds"
+                    placeholder="선택 안 함"
+                  >
+                    <ion-select-option v-for="t in tags" :key="t.id" :value="t.id">
+                      {{ t.name }}
+                    </ion-select-option>
+                  </ion-select>
+                </ion-item>
+                <ion-item>
+                  <ion-input
+                    label="구매일"
+                    label-placement="stacked"
+                    type="date"
+                    v-model="form.purchaseDate"
+                  />
+                </ion-item>
+                <ion-item>
+                  <ion-input
+                    label="유효기간"
+                    label-placement="stacked"
+                    type="date"
+                    v-model="form.expirationDate"
+                  />
+                </ion-item>
+              </ion-list>
+            </div>
+          </ion-accordion>
+        </ion-accordion-group>
 
         <div v-if="homes.length > 0" class="ion-padding-horizontal">
           <ion-label class="section">사진</ion-label>
