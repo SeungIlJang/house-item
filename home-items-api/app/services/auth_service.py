@@ -2,6 +2,7 @@
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.defaults import (
     DEFAULT_CATEGORIES,
     DEFAULT_HOME_NAME,
@@ -58,7 +59,7 @@ class AuthService:
         self.db.add_all(Tag(user_id=user_id, name=name) for name in DEFAULT_TAGS)
         self.db.commit()
 
-    def login(self, *, email: str, password: str) -> tuple[str, User]:
+    def login(self, *, email: str, password: str, remember_me: bool = True) -> tuple[str, User]:
         user = self.users.get_by_email(email)
         # 이메일 존재 여부를 노출하지 않도록 동일한 오류 메시지를 사용
         if user is None or not verify_password(password, user.password_hash):
@@ -66,5 +67,10 @@ class AuthService:
                 "이메일 또는 비밀번호가 올바르지 않습니다.",
                 error_code="INVALID_CREDENTIALS",
             )
-        token = create_access_token(user.id)
+        expires = (
+            settings.remember_token_expire_minutes
+            if remember_me
+            else settings.access_token_expire_minutes
+        )
+        token = create_access_token(user.id, expires_minutes=expires)
         return token, user

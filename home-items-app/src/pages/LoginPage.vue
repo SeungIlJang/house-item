@@ -9,6 +9,7 @@ import {
   IonItem,
   IonList,
   IonText,
+  IonCheckbox,
 } from '@ionic/vue'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
@@ -20,6 +21,7 @@ const toast = useToast()
 
 const email = ref('')
 const password = ref('')
+const rememberMe = ref(true)
 const loading = ref(false)
 
 async function onSubmit() {
@@ -29,7 +31,7 @@ async function onSubmit() {
   }
   loading.value = true
   try {
-    await auth.login(email.value, password.value)
+    await auth.login(email.value, password.value, rememberMe.value)
     router.replace('/tabs/home')
   } catch (e) {
     toast.error(extractErrorMessage(e, '로그인에 실패했습니다.'))
@@ -69,6 +71,8 @@ async function onSubmit() {
           </ion-item>
         </ion-list>
 
+        <ion-checkbox v-model="rememberMe" class="remember">로그인 유지</ion-checkbox>
+
         <ion-button expand="block" class="ion-margin-top" :disabled="loading" @click="onSubmit">
           {{ loading ? '로그인 중...' : '로그인' }}
         </ion-button>
@@ -103,5 +107,8 @@ async function onSubmit() {
 .signup-hint {
   text-align: center;
   margin-top: 16px;
+}
+.remember {
+  margin: 12px 4px 0;
 }
 </style>

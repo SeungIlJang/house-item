@@ -9,16 +9,16 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
   const isAuthenticated = ref<boolean>(!!getToken())
 
-  async function login(email: string, password: string): Promise<void> {
-    const data = await authApi.login(email, password)
-    setToken(data.accessToken)
+  async function login(email: string, password: string, rememberMe = true): Promise<void> {
+    const data = await authApi.login(email, password, rememberMe)
+    setToken(data.accessToken, rememberMe)
     user.value = data.user
     isAuthenticated.value = true
   }
 
   async function signup(email: string, password: string, name: string): Promise<void> {
     await authApi.signup(email, password, name)
-    await login(email, password)
+    await login(email, password, true)
   }
 
   async function fetchMe(): Promise<void> {

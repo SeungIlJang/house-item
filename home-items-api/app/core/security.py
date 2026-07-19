@@ -26,9 +26,12 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
-def create_access_token(subject: str | int) -> str:
+def create_access_token(subject: str | int, expires_minutes: int | None = None) -> str:
     """subject(보통 user id)를 담은 Access Token 발급."""
-    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
+    minutes = (
+        expires_minutes if expires_minutes is not None else settings.access_token_expire_minutes
+    )
+    expire = datetime.now(UTC) + timedelta(minutes=minutes)
     payload = {"sub": str(subject), "exp": expire}
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 

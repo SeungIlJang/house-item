@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-me"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
+    # '로그인 유지' 선택 시 사용하는 장기 만료(기본 30일)
+    remember_token_expire_minutes: int = 60 * 24 * 30
 
     # CORS 허용 출처 (쉼표로 구분한 문자열)
     cors_origins: str = "http://localhost:5173"

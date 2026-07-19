@@ -21,6 +21,7 @@ class SignupRequest(CamelModel):
 class LoginRequest(CamelModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=72)
+    remember_me: bool = True  # -> rememberMe (기본 유지)
 
 
 class UserResponse(CamelModel):

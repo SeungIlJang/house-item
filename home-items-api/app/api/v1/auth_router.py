@@ -27,6 +27,8 @@ def signup(payload: SignupRequest, db: DbSession) -> ApiResponse[UserResponse]:
 
 @router.post("/login")
 def login(payload: LoginRequest, db: DbSession) -> ApiResponse[TokenResponse]:
-    token, user = AuthService(db).login(email=payload.email, password=payload.password)
+    token, user = AuthService(db).login(
+        email=payload.email, password=payload.password, remember_me=payload.remember_me
+    )
     data = TokenResponse(access_token=token, user=UserResponse.model_validate(user))
     return ApiResponse(data=data)

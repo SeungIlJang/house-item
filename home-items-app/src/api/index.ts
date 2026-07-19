@@ -25,8 +25,10 @@ export const authApi = {
   async signup(email: string, password: string, name: string): Promise<User> {
     return unwrap<User>(await client.post('/auth/signup', { email, password, name }))
   },
-  async login(email: string, password: string): Promise<TokenData> {
-    return unwrap<TokenData>(await client.post('/auth/login', { email, password }))
+  async login(email: string, password: string, rememberMe = true): Promise<TokenData> {
+    return unwrap<TokenData>(
+      await client.post('/auth/login', { email, password, rememberMe }),
+    )
   },
   async me(): Promise<User> {
     return unwrap<User>(await client.get('/users/me'))

@@ -4,15 +4,24 @@ import axios, { type AxiosInstance } from 'axios'
 const TOKEN_KEY = 'home_items_token'
 
 export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY)
+  // 로그인 유지(localStorage) 우선, 아니면 세션(sessionStorage)
+  return localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY)
 }
 
-export function setToken(token: string): void {
-  localStorage.setItem(TOKEN_KEY, token)
+// persistent=true 면 앱을 껐다 켜도 유지(localStorage), false 면 세션 동안만(sessionStorage)
+export function setToken(token: string, persistent = true): void {
+  if (persistent) {
+    localStorage.setItem(TOKEN_KEY, token)
+    sessionStorage.removeItem(TOKEN_KEY)
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token)
+    localStorage.removeItem(TOKEN_KEY)
+  }
 }
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY)
+  sessionStorage.removeItem(TOKEN_KEY)
 }
 
 const client: AxiosInstance = axios.create({
