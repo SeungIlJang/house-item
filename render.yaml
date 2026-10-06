@@ -1,3 +1,4 @@
+# LEGACY: 현재 운영은 Cloudflare Workers + D1 + R2를 사용합니다.
 # Render Blueprint — 백엔드(FastAPI) + PostgreSQL 자동 구성
 # 사용법: Render 대시보드 → New → Blueprint → 이 저장소 연결 → Apply
 # R2(S3) 비밀값은 Blueprint 로 만들어진 뒤 대시보드에서 채웁니다(sync: false).

@@ -2,6 +2,10 @@
 import axios, { type AxiosInstance } from 'axios'
 
 const TOKEN_KEY = 'home_items_token'
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+  || (import.meta.env.PROD
+    ? 'https://home-items-api.season-masil.workers.dev/api/v1'
+    : 'http://localhost:8000/api/v1')
 
 export function getToken(): string | null {
   // 로그인 유지(localStorage) 우선, 아니면 세션(sessionStorage)
@@ -25,7 +29,7 @@ export function clearToken(): void {
 }
 
 const client: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 })
 

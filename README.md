@@ -1,5 +1,7 @@
 # 집안의모든것 (home-items)
 
+> 운영 백엔드는 Cloudflare Workers + D1 + R2를 사용합니다. Render 문서는 이전 구성 참고용이며, 현재 운영 절차는 `docs/Cloudflare배포.md`를 확인하세요.
+
 집 안의 물건을 등록하고 **어느 방, 어느 수납공간**에 보관되어 있는지 기록해
 나중에 쉽게 찾을 수 있는 웹·모바일 서비스입니다.
 
@@ -11,7 +13,8 @@
 
 ```text
 house-items/
-├── home-items-api/   # 백엔드 (FastAPI, SQLAlchemy, PostgreSQL)
+├── worker/           # 운영 백엔드 (Cloudflare Workers, D1, R2)
+├── home-items-api/   # 기존/로컬 백엔드 (FastAPI, SQLAlchemy)
 ├── home-items-app/   # 프론트 (Ionic Vue, Vite, Pinia)
 ├── docs/             # 단계별 개발 기록 (0~23단계)
 ├── docker-compose.yml
@@ -22,7 +25,8 @@ house-items/
 ## 기술 스택
 
 - **Frontend**: TypeScript, Vue 3, Ionic Vue 8, Vite 5, Pinia, Vue Router, Axios, PWA(vite-plugin-pwa)
-- **Backend**: Python 3.13, FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic, PostgreSQL, JWT(python-jose), bcrypt, uv, pytest
+- **Production Backend**: Cloudflare Workers, Hono, D1(SQLite 호환), R2
+- **Legacy/Local Backend**: Python 3.13, FastAPI, SQLAlchemy, Alembic
 - **Dev**: Git, .env, REST API, OpenAPI/Swagger UI. Docker 는 배포 시점 사용.
 
 ---

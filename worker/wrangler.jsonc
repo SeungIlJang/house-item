@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "home-items-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_ENV": "production",
+    "CORS_ORIGINS": "https://localhost",
+    "R2_PUBLIC_BASE_URL": "https://pub-fa27dec30c6241889d42241398b188fa.r2.dev"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "home-items-db",
+      "database_id": "844a0fa6-3cca-4156-b534-e7ac4c353a7f",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "IMAGES",
+      "bucket_name": "home-items"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 // 도메인별 API 호출 모음. 응답 래퍼(ApiResponse)에서 data 를 꺼내 반환한다.
-import client from './client'
+import client, { API_BASE_URL } from './client'
 import type {
   ApiResponse,
   Category,
@@ -190,6 +190,6 @@ export const itemApi = {
 export function imageUrl(path: string | null): string | undefined {
   if (!path) return undefined
   if (/^https?:\/\//.test(path)) return path
-  const base = import.meta.env.VITE_API_BASE_URL.replace(/\/api\/v1$/, '')
+  const base = API_BASE_URL.replace(/\/api\/v1$/, '')
   return `${base}${path}`
 }

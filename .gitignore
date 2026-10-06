@@ -31,6 +31,7 @@ dist/
 dist-ssr/
 *.local
 .vite/
+.wrangler/
 
 # ===== Capacitor / Mobile (추후) =====
 home-items-app/android/

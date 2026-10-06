@@ -1,0 +1,20 @@
+{
+  "name": "home-items-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 migrations apply home-items-db --local",
+    "db:remote": "wrangler d1 migrations apply home-items-db --remote",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.10.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261006.1",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.147.0"
+  }
+}
