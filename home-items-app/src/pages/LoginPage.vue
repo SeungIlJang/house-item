@@ -1,42 +1,30 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  IonPage,
-  IonContent,
-  IonInput,
-  IonButton,
-  IonItem,
-  IonList,
-  IonText,
-  IonCheckbox,
-} from '@ionic/vue'
+import { IonPage, IonContent, IonButton, IonIcon, IonSpinner, IonText } from '@ionic/vue'
+import { logoGoogle, chatbubbleEllipses } from 'ionicons/icons'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
-import { extractErrorMessage } from '@/api/client'
+import { PROVIDER_LABEL, SocialAuthError, type SocialProvider } from '@/services/socialAuth'
 
 const router = useRouter()
 const auth = useAuthStore()
 const toast = useToast()
 
-const email = ref('')
-const password = ref('')
-const rememberMe = ref(true)
-const loading = ref(false)
+const pending = ref<SocialProvider | null>(null)
 
-async function onSubmit() {
-  if (!email.value || !password.value) {
-    toast.error('이메일과 비밀번호를 입력해주세요.')
-    return
-  }
-  loading.value = true
+async function signIn(provider: SocialProvider) {
+  if (pending.value) return
+  pending.value = provider
   try {
-    await auth.login(email.value, password.value, rememberMe.value)
+    await auth.loginWith(provider)
     router.replace('/tabs/home')
   } catch (e) {
-    toast.error(extractErrorMessage(e, '로그인에 실패했습니다.'))
+    // 사용자가 직접 취소한 경우는 오류로 알리지 않는다.
+    if (e instanceof SocialAuthError && e.code === 'ACCESS_DENIED') return
+    toast.error(e instanceof Error ? e.message : '로그인에 실패했습니다.')
   } finally {
-    loading.value = false
+    pending.value = null
   }
 }
 </script>
@@ -48,39 +36,33 @@ async function onSubmit() {
         <h1 class="title">집안의모든것</h1>
         <p class="subtitle">우리 집 물건, 어디에 뒀는지 바로 찾기</p>
 
-        <ion-list>
-          <ion-item>
-            <ion-input
-              label="이메일"
-              label-placement="stacked"
-              type="email"
-              v-model="email"
-              placeholder="you@example.com"
-              autocomplete="email"
-            />
-          </ion-item>
-          <ion-item>
-            <ion-input
-              label="비밀번호"
-              label-placement="stacked"
-              type="password"
-              v-model="password"
-              placeholder="비밀번호"
-              @keyup.enter="onSubmit"
-            />
-          </ion-item>
-        </ion-list>
+        <div class="providers">
+          <ion-button
+            expand="block"
+            class="provider google"
+            :disabled="pending !== null"
+            @click="signIn('google')"
+          >
+            <ion-spinner v-if="pending === 'google'" name="crescent" slot="start" />
+            <ion-icon v-else :icon="logoGoogle" slot="start" />
+            {{ PROVIDER_LABEL.google }}로 계속하기
+          </ion-button>
 
-        <ion-checkbox v-model="rememberMe" class="remember">로그인 유지</ion-checkbox>
-
-        <ion-button expand="block" class="ion-margin-top" :disabled="loading" @click="onSubmit">
-          {{ loading ? '로그인 중...' : '로그인' }}
-        </ion-button>
+          <ion-button
+            expand="block"
+            class="provider kakao"
+            :disabled="pending !== null"
+            @click="signIn('kakao')"
+          >
+            <ion-spinner v-if="pending === 'kakao'" name="crescent" slot="start" />
+            <ion-icon v-else :icon="chatbubbleEllipses" slot="start" />
+            {{ PROVIDER_LABEL.kakao }}로 계속하기
+          </ion-button>
+        </div>
 
         <ion-text color="medium">
-          <p class="signup-hint">
-            계정이 없으신가요?
-            <router-link to="/signup">회원가입</router-link>
+          <p class="notice">
+            로그인하면 서비스 이용약관과 개인정보 처리방침에 동의하는 것으로 봅니다.
           </p>
         </ion-text>
       </div>
@@ -92,23 +74,47 @@ async function onSubmit() {
 .login-wrap {
   max-width: 420px;
   margin: 0 auto;
-  padding-top: 12vh;
+  padding-top: 18vh;
 }
 .title {
-  text-align: center;
+  font-size: 28px;
   font-weight: 700;
-  margin-bottom: 4px;
+  text-align: center;
+  margin-bottom: 6px;
 }
 .subtitle {
   text-align: center;
   color: var(--ion-color-medium);
-  margin-bottom: 24px;
+  margin: 0 0 40px;
 }
-.signup-hint {
+.providers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.provider {
+  --border-radius: 10px;
+  height: 50px;
+  font-weight: 600;
+  text-transform: none;
+}
+.provider.google {
+  --background: #ffffff;
+  --background-activated: #f1f3f4;
+  --color: #1f1f1f;
+  --border-color: #dadce0;
+  --border-style: solid;
+  --border-width: 1px;
+}
+.provider.kakao {
+  --background: #fee500;
+  --background-activated: #f0d900;
+  --color: #191600;
+}
+.notice {
+  margin-top: 28px;
+  font-size: 12px;
+  line-height: 1.6;
   text-align: center;
-  margin-top: 16px;
-}
-.remember {
-  margin: 12px 4px 0;
 }
 </style>
