@@ -7,6 +7,7 @@
   "vars": {
     "APP_ENV": "production",
     "CORS_ORIGINS": "https://localhost",
+    "APP_REDIRECT_URI": "com.homeitems.app://auth",
     "R2_PUBLIC_BASE_URL": "https://pub-fa27dec30c6241889d42241398b188fa.r2.dev"
   },
   "d1_databases": [

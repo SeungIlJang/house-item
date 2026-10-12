@@ -153,14 +153,14 @@ const fetchProfile = async (provider: ProviderName, accessToken: string): Promis
 const resolveUser = async (c: any, provider: ProviderName, profile: ProviderProfile) => {
   const identity = await c.env.DB
     .prepare('SELECT user_id FROM auth_identities WHERE provider=? AND provider_user_id=?')
-    .bind(provider, profile.providerUserId).first<Row>()
+    .bind(provider, profile.providerUserId).first() as Row | null
   if (identity) return Number(identity.user_id)
 
   let userId: number | null = null
   if (profile.email) {
     const existing = await c.env.DB
       .prepare('SELECT id FROM users WHERE email IS NOT NULL AND lower(email)=lower(?)')
-      .bind(profile.email).first<Row>()
+      .bind(profile.email).first() as Row | null
     if (existing) userId = Number(existing.id)
   }
 

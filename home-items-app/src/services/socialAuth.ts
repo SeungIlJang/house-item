@@ -65,7 +65,10 @@ export async function signInWith(provider: SocialProvider): Promise<string> {
   const urlListener = await App.addListener('appUrlOpen', ({ url }) => handleUrl(url))
   const closeListener = await Browser.addListener('browserFinished', () => handleCancel())
 
+  // TypeScript 함수 타입의 매개변수를 core ESLint가 값 변수로 오인한다.
+  // eslint-disable-next-line no-unused-vars
   let settle: ((token: string) => void) | null = null
+  // eslint-disable-next-line no-unused-vars
   let failWith: ((error: unknown) => void) | null = null
 
   const cleanup = async () => {
