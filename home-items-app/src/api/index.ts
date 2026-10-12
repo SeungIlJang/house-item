@@ -12,7 +12,6 @@ import type {
   StorageLocation,
   StorageTreeNode,
   Tag,
-  TokenData,
   User,
 } from '@/types/api'
 
@@ -21,15 +20,9 @@ function unwrap<T>(res: { data: ApiResponse<T> }): T {
 }
 
 // ----- 인증 -----
+// 로그인은 소셜(구글·카카오) 전용이라 서버 OAuth 리다이렉션으로 처리한다.
+// src/services/socialAuth.ts 참고.
 export const authApi = {
-  async signup(email: string, password: string, name: string): Promise<User> {
-    return unwrap<User>(await client.post('/auth/signup', { email, password, name }))
-  },
-  async login(email: string, password: string, rememberMe = true): Promise<TokenData> {
-    return unwrap<TokenData>(
-      await client.post('/auth/login', { email, password, rememberMe }),
-    )
-  },
   async me(): Promise<User> {
     return unwrap<User>(await client.get('/users/me'))
   },
