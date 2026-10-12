@@ -5,7 +5,6 @@ import { getToken } from '@/api/client'
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/tabs/home' },
   { path: '/login', component: () => import('@/pages/LoginPage.vue'), meta: { public: true } },
-  { path: '/signup', component: () => import('@/pages/SignupPage.vue'), meta: { public: true } },
   {
     path: '/tabs',
     component: () => import('@/pages/TabsPage.vue'),
