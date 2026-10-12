@@ -8,6 +8,12 @@ type Bindings = {
   APP_ENV: string
   CORS_ORIGINS: string
   R2_PUBLIC_BASE_URL: string
+  // 소셜 로그인. 값은 wrangler secret 으로 주입한다.
+  GOOGLE_CLIENT_ID: string
+  GOOGLE_CLIENT_SECRET: string
+  KAKAO_REST_API_KEY: string
+  KAKAO_CLIENT_SECRET: string
+  APP_REDIRECT_URI: string // 예: com.homeitems.app://auth
 }
 type Variables = { userId: number }
 type Row = Record<string, any>
@@ -44,20 +50,7 @@ const verifyToken = async (token: string, secret: string) => {
     return payload.exp > Date.now() / 1000 ? Number(payload.sub) : null
   } catch { return null }
 }
-const hashPassword = async (password: string) => {
-  const salt = crypto.getRandomValues(new Uint8Array(16))
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
-  const hash = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: 100000 }, key, 256)
-  return `pbkdf2$100000$${b64url(salt)}$${b64url(hash)}`
-}
-const verifyPassword = async (password: string, stored: string) => {
-  const [scheme, rounds, salt, expected] = stored.split('$')
-  if (scheme !== 'pbkdf2') return false
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits'])
-  const hash = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: fromB64url(salt), iterations: Number(rounds) }, key, 256)
-  return b64url(hash) === expected
-}
-const userJson = (row: Row) => ({ id: row.id, email: row.email, name: row.name, createdAt: row.created_at })
+const userJson = (row: Row) => ({ id: row.id, email: row.email ?? null, name: row.name, avatarUrl: row.avatar_url ?? null, createdAt: row.created_at })
 const entityJson = (row: Row) => ({ id: row.id, name: row.name, description: row.description ?? null, createdAt: row.created_at, updatedAt: row.updated_at })
 
 app.use('*', async (c, next) => cors({
@@ -68,7 +61,7 @@ app.use('*', async (c, next) => cors({
 })(c, next))
 
 app.use('/api/v1/*', async (c, next) => {
-  if (c.req.path === '/api/v1/auth/signup' || c.req.path === '/api/v1/auth/login') return next()
+  if (c.req.path.startsWith('/api/v1/auth/')) return next()
   const token = c.req.header('Authorization')?.replace(/^Bearer\s+/i, '')
   const userId = token ? await verifyToken(token, c.env.JWT_SECRET_KEY) : null
   if (!userId) return c.json(fail('인증이 필요합니다.', 'NOT_AUTHENTICATED'), 401)
@@ -81,20 +74,183 @@ app.use('/api/v1/*', async (c, next) => {
 app.get('/health', (c) => c.json(ok({ status: 'ok', env: c.env.APP_ENV })))
 app.get('/health/db', async (c) => { await c.env.DB.prepare('SELECT 1').first(); return c.json(ok({ database: 'ok' })) })
 
-app.post('/api/v1/auth/signup', async (c) => {
-  const body = await c.req.json<Row>()
-  if (!body.email || !body.password || !body.name) return c.json(fail('필수 정보를 입력해 주세요.', 'VALIDATION_ERROR'), 422)
-  const exists = await c.env.DB.prepare('SELECT id FROM users WHERE lower(email) = lower(?)').bind(body.email).first()
-  if (exists) return c.json(fail('이미 가입된 이메일입니다.', 'EMAIL_ALREADY_EXISTS'), 409)
-  const result = await c.env.DB.prepare('INSERT INTO users(email,password_hash,name) VALUES(?,?,?)').bind(body.email.trim(), await hashPassword(body.password), body.name.trim()).run()
-  const user = await c.env.DB.prepare('SELECT * FROM users WHERE id=?').bind(result.meta.last_row_id).first<Row>()
-  return c.json(ok(userJson(user!)), 201)
+// ──────────────────────────────────────────────────────────────
+// 소셜 로그인 (구글 · 카카오)
+//
+// 구글은 임베디드 WebView 에서의 OAuth 를 차단하므로(disallowed_useragent),
+// 앱은 시스템 브라우저(Custom Tabs)로 /start 를 열고, 교환은 서버에서 한다.
+// client_secret 은 Worker 에만 둔다.
+//
+//   앱 → GET /start → (브라우저) 제공자 동의 → GET /callback
+//     → 토큰 교환 → 사용자 조회·생성 → 자체 JWT → 딥링크로 앱 복귀
+// ──────────────────────────────────────────────────────────────
+
+type ProviderName = 'google' | 'kakao'
+type ProviderProfile = { providerUserId: string; name: string; email: string | null; avatarUrl: string | null }
+
+const STATE_TTL_SECONDS = 600
+
+const randomUrlSafe = (bytes = 32) => b64url(crypto.getRandomValues(new Uint8Array(bytes)))
+
+const pkceChallenge = async (verifier: string) =>
+  b64url(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier)))
+
+const callbackUrl = (c: any, provider: ProviderName) =>
+  `${new URL(c.req.url).origin}/api/v1/auth/${provider}/callback`
+
+const providerConfig = (c: any, provider: ProviderName) => {
+  if (provider === 'google') {
+    return {
+      authorizeUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
+      tokenUrl: 'https://oauth2.googleapis.com/token',
+      clientId: c.env.GOOGLE_CLIENT_ID,
+      clientSecret: c.env.GOOGLE_CLIENT_SECRET,
+      scope: 'openid profile email',
+      extraAuthParams: { access_type: 'online', prompt: 'select_account' } as Record<string, string>,
+    }
+  }
+  return {
+    authorizeUrl: 'https://kauth.kakao.com/oauth/authorize',
+    tokenUrl: 'https://kauth.kakao.com/oauth/token',
+    clientId: c.env.KAKAO_REST_API_KEY,
+    clientSecret: c.env.KAKAO_CLIENT_SECRET,
+    scope: 'profile_nickname profile_image',
+    extraAuthParams: {} as Record<string, string>,
+  }
+}
+
+const fetchProfile = async (provider: ProviderName, accessToken: string): Promise<ProviderProfile> => {
+  if (provider === 'google') {
+    const res = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) throw new Error('google userinfo ' + res.status)
+    const p = await res.json<Row>()
+    return {
+      providerUserId: String(p.sub),
+      name: p.name || p.given_name || '사용자',
+      email: p.email ?? null,
+      avatarUrl: p.picture ?? null,
+    }
+  }
+  const res = await fetch('https://kapi.kakao.com/v2/user/me', {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw new Error('kakao user/me ' + res.status)
+  const p = await res.json<Row>()
+  const account = p.kakao_account ?? {}
+  const profile = account.profile ?? {}
+  return {
+    providerUserId: String(p.id),
+    name: profile.nickname || '사용자',
+    // 이메일은 동의항목 심사를 통과하고 사용자가 동의했을 때만 내려온다.
+    email: account.email ?? null,
+    avatarUrl: profile.profile_image_url ?? null,
+  }
+}
+
+// 기존 식별자가 있으면 그 계정, 없으면 같은 이메일 계정에 연결, 그것도 없으면 신규 생성.
+const resolveUser = async (c: any, provider: ProviderName, profile: ProviderProfile) => {
+  const identity = await c.env.DB
+    .prepare('SELECT user_id FROM auth_identities WHERE provider=? AND provider_user_id=?')
+    .bind(provider, profile.providerUserId).first<Row>()
+  if (identity) return Number(identity.user_id)
+
+  let userId: number | null = null
+  if (profile.email) {
+    const existing = await c.env.DB
+      .prepare('SELECT id FROM users WHERE email IS NOT NULL AND lower(email)=lower(?)')
+      .bind(profile.email).first<Row>()
+    if (existing) userId = Number(existing.id)
+  }
+
+  if (userId === null) {
+    const created = await c.env.DB
+      .prepare('INSERT INTO users(email,name,avatar_url) VALUES(?,?,?)')
+      .bind(profile.email, profile.name, profile.avatarUrl).run()
+    userId = Number(created.meta.last_row_id)
+  }
+
+  await c.env.DB
+    .prepare('INSERT INTO auth_identities(user_id,provider,provider_user_id) VALUES(?,?,?)')
+    .bind(userId, provider, profile.providerUserId).run()
+  return userId
+}
+
+const appRedirect = (c: any, params: Record<string, string>) => {
+  const target = new URL(c.env.APP_REDIRECT_URI)
+  for (const [k, val] of Object.entries(params)) target.searchParams.set(k, val)
+  return c.redirect(target.toString(), 302)
+}
+
+app.get('/api/v1/auth/:provider/start', async (c) => {
+  const provider = c.req.param('provider') as ProviderName
+  if (provider !== 'google' && provider !== 'kakao') return c.json(fail('지원하지 않는 로그인입니다.', 'UNSUPPORTED_PROVIDER'), 404)
+
+  const cfg = providerConfig(c, provider)
+  if (!cfg.clientId) return c.json(fail('로그인 설정이 준비되지 않았습니다.', 'PROVIDER_NOT_CONFIGURED'), 503)
+
+  const state = randomUrlSafe(16)
+  const verifier = randomUrlSafe(32)
+  await c.env.DB.prepare('DELETE FROM oauth_states WHERE expires_at < ?').bind(Math.floor(Date.now() / 1000)).run()
+  await c.env.DB
+    .prepare('INSERT INTO oauth_states(state,provider,code_verifier,expires_at) VALUES(?,?,?,?)')
+    .bind(state, provider, verifier, Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS).run()
+
+  const url = new URL(cfg.authorizeUrl)
+  url.searchParams.set('client_id', cfg.clientId)
+  url.searchParams.set('redirect_uri', callbackUrl(c, provider))
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('scope', cfg.scope)
+  url.searchParams.set('state', state)
+  url.searchParams.set('code_challenge', await pkceChallenge(verifier))
+  url.searchParams.set('code_challenge_method', 'S256')
+  for (const [k, val] of Object.entries(cfg.extraAuthParams)) url.searchParams.set(k, val)
+  return c.redirect(url.toString(), 302)
 })
-app.post('/api/v1/auth/login', async (c) => {
-  const body = await c.req.json<Row>()
-  const user = await c.env.DB.prepare('SELECT * FROM users WHERE lower(email)=lower(?)').bind(body.email || '').first<Row>()
-  if (!user || !await verifyPassword(body.password || '', user.password_hash)) return c.json(fail('이메일 또는 비밀번호가 올바르지 않습니다.', 'INVALID_CREDENTIALS'), 401)
-  return c.json(ok({ accessToken: await makeToken(user.id, c.env.JWT_SECRET_KEY, body.rememberMe !== false), tokenType: 'bearer', user: userJson(user) }))
+
+app.get('/api/v1/auth/:provider/callback', async (c) => {
+  const provider = c.req.param('provider') as ProviderName
+  if (provider !== 'google' && provider !== 'kakao') return c.json(fail('지원하지 않는 로그인입니다.', 'UNSUPPORTED_PROVIDER'), 404)
+
+  const code = c.req.query('code')
+  const state = c.req.query('state')
+  if (c.req.query('error') || !code || !state) return appRedirect(c, { error: 'ACCESS_DENIED' })
+
+  // state 는 1회용. 조회 즉시 삭제해 재사용을 막는다.
+  const saved = await c.env.DB.prepare('SELECT * FROM oauth_states WHERE state=?').bind(state).first<Row>()
+  if (saved) await c.env.DB.prepare('DELETE FROM oauth_states WHERE state=?').bind(state).run()
+  if (!saved || saved.provider !== provider || Number(saved.expires_at) < Math.floor(Date.now() / 1000)) {
+    return appRedirect(c, { error: 'INVALID_STATE' })
+  }
+
+  try {
+    const cfg = providerConfig(c, provider)
+    const form = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: cfg.clientId,
+      redirect_uri: callbackUrl(c, provider),
+      code,
+      code_verifier: String(saved.code_verifier),
+    })
+    if (cfg.clientSecret) form.set('client_secret', cfg.clientSecret)
+
+    const tokenRes = await fetch(cfg.tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form,
+    })
+    if (!tokenRes.ok) return appRedirect(c, { error: 'TOKEN_EXCHANGE_FAILED' })
+    const token = await tokenRes.json<Row>()
+    if (!token.access_token) return appRedirect(c, { error: 'TOKEN_EXCHANGE_FAILED' })
+
+    const profile = await fetchProfile(provider, token.access_token)
+    const userId = await resolveUser(c, provider, profile)
+    const accessToken = await makeToken(userId, c.env.JWT_SECRET_KEY, true)
+    return appRedirect(c, { token: accessToken })
+  } catch {
+    return appRedirect(c, { error: 'LOGIN_FAILED' })
+  }
 })
 app.get('/api/v1/users/me', async (c) => {
   const user = await c.env.DB.prepare('SELECT * FROM users WHERE id=?').bind(c.get('userId')).first<Row>()
