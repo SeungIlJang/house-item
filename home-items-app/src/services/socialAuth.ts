@@ -7,7 +7,6 @@
 //   Browser.open(/auth/<provider>/start)
 //     → 제공자 동의 → Worker 콜백 → com.homeitems.app://auth?token=...
 //     → App 의 appUrlOpen 으로 수신
-import { App } from '@capacitor/app'
 import { Browser } from '@capacitor/browser'
 import { Capacitor } from '@capacitor/core'
 import { API_BASE_URL } from '@/api/client'
@@ -37,6 +36,27 @@ export class SocialAuthError extends Error {
 
 const startUrl = (provider: SocialProvider) => API_BASE_URL + '/auth/' + provider + '/start'
 
+// appUrlOpen 리스너는 App.vue 에 하나만 둔다. signInWith() 는 대기자만 등록해 두고,
+// 딥링크가 오면 App.vue 가 consumeCallbackUrl() 로 넘겨준다.
+// (양쪽이 각자 리스너를 걸면 같은 딥링크를 두 번 처리하게 된다)
+// eslint-disable-next-line no-unused-vars
+let pendingHandler: ((url: string) => void) | null = null
+
+/** 소셜 로그인 콜백 딥링크인지. */
+export const isCallbackUrl = (url: string) => url.includes('token=') || url.includes('error=')
+
+/**
+ * 대기 중인 signInWith() 에 콜백을 넘긴다.
+ * 넘길 대상이 없으면(앱이 재시작된 경우 등) false 를 돌려주고, 호출한 쪽이 직접 처리한다.
+ */
+export function consumeCallbackUrl(url: string): boolean {
+  const handler = pendingHandler
+  if (!handler) return false
+  pendingHandler = null
+  handler(url)
+  return true
+}
+
 /** 딥링크/리다이렉트 URL 에서 토큰을 꺼낸다. 실패면 SocialAuthError 를 던진다. */
 export function readCallbackUrl(url: string): string {
   const parsed = new URL(url)
@@ -62,7 +82,6 @@ export async function signInWith(provider: SocialProvider): Promise<string> {
     return new Promise<string>(() => {})
   }
 
-  const urlListener = await App.addListener('appUrlOpen', ({ url }) => handleUrl(url))
   const closeListener = await Browser.addListener('browserFinished', () => handleCancel())
 
   // TypeScript 함수 타입의 매개변수를 core ESLint가 값 변수로 오인한다.
@@ -74,7 +93,7 @@ export async function signInWith(provider: SocialProvider): Promise<string> {
   const cleanup = async () => {
     settle = null
     failWith = null
-    await urlListener.remove()
+    if (pendingHandler === handleUrl) pendingHandler = null
     await closeListener.remove()
   }
 
@@ -103,6 +122,7 @@ export async function signInWith(provider: SocialProvider): Promise<string> {
     settle = resolve
     failWith = reject
   })
+  pendingHandler = handleUrl
 
   try {
     await Browser.open({ url: startUrl(provider), presentationStyle: 'popover' })

@@ -5,7 +5,7 @@ import { App } from '@capacitor/app'
 import type { PluginListenerHandle } from '@capacitor/core'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { readCallbackUrl } from '@/services/socialAuth'
+import { consumeCallbackUrl, isCallbackUrl, readCallbackUrl } from '@/services/socialAuth'
 
 const ionRouter = useIonRouter()
 const router = useRouter()
@@ -27,20 +27,30 @@ useBackButton(-1, () => {
   }
 })
 
-// 소셜 로그인 딥링크. 로그인 화면이 띄워지기 전에 돌아오거나,
-// 앱이 재시작된 경우를 대비해 전역에서도 한 번 더 받는다.
+// 소셜 로그인 딥링크를 받는 유일한 창구.
+// signInWith() 가 기다리는 중이면 그쪽으로 넘기고, 대기자가 없을 때만 여기서 마무리한다.
 let urlListener: PluginListenerHandle | null = null
 
+// 콜드 스타트에서는 getLaunchUrl() 과 appUrlOpen 이 같은 URL 을 둘 다 줄 수 있다.
+let lastHandledUrl = ''
+
+async function handleDeepLink(url: string) {
+  if (!isCallbackUrl(url) || url === lastHandledUrl) return
+  lastHandledUrl = url
+  if (consumeCallbackUrl(url)) return // 로그인 화면이 대기 중 → 중복 처리 방지
+  try {
+    await auth.applyToken(readCallbackUrl(url))
+    router.replace('/tabs/home')
+  } catch {
+    // 실패 메시지는 로그인 화면에서 처리한다.
+  }
+}
+
 onMounted(async () => {
-  urlListener = await App.addListener('appUrlOpen', async ({ url }) => {
-    if (!url.includes('token=') && !url.includes('error=')) return
-    try {
-      await auth.applyToken(readCallbackUrl(url))
-      router.replace('/tabs/home')
-    } catch {
-      // 실패 메시지는 로그인 화면에서 처리한다.
-    }
-  })
+  urlListener = await App.addListener('appUrlOpen', ({ url }) => void handleDeepLink(url))
+  // 앱이 종료된 상태에서 딥링크로 켜지면 리스너를 걸기 전에 이벤트가 지나간다.
+  const launch = await App.getLaunchUrl()
+  if (launch?.url) await handleDeepLink(launch.url)
 })
 
 onUnmounted(() => {
