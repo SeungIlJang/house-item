@@ -5,7 +5,7 @@ import { App } from '@capacitor/app'
 import type { PluginListenerHandle } from '@capacitor/core'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { consumeCallbackUrl, isCallbackUrl, readCallbackUrl } from '@/services/socialAuth'
+import { consumeCallbackUrl, isAuthCallbackUrl, readCallbackUrl } from '@/services/socialAuth'
 
 const ionRouter = useIonRouter()
 const router = useRouter()
@@ -35,7 +35,7 @@ let urlListener: PluginListenerHandle | null = null
 let lastHandledUrl = ''
 
 async function handleDeepLink(url: string) {
-  if (!isCallbackUrl(url) || url === lastHandledUrl) return
+  if (!isAuthCallbackUrl(url) || url === lastHandledUrl) return
   lastHandledUrl = url
   if (consumeCallbackUrl(url)) return // 로그인 화면이 대기 중 → 중복 처리 방지
   try {

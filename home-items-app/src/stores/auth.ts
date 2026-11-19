@@ -13,8 +13,12 @@ export const useAuthStore = defineStore('auth', () => {
   /** 서버가 발급한 JWT 를 저장하고 내 정보를 불러온다. */
   async function applyToken(token: string): Promise<void> {
     setToken(token, true)
-    isAuthenticated.value = true
-    await fetchMe()
+    try {
+      await fetchMe()
+    } catch (error) {
+      logout()
+      throw error
+    }
   }
 
   /** 소셜 로그인 시작. 네이티브에서는 토큰을 받아 바로 로그인까지 끝낸다. */

@@ -129,7 +129,7 @@ const fetchProfile = async (provider: ProviderName, accessToken: string): Promis
     return {
       providerUserId: String(p.sub),
       name: p.name || p.given_name || '사용자',
-      email: p.email ?? null,
+      email: p.email_verified === true ? p.email ?? null : null,
       avatarUrl: p.picture ?? null,
     }
   }
@@ -144,7 +144,7 @@ const fetchProfile = async (provider: ProviderName, accessToken: string): Promis
     providerUserId: String(p.id),
     name: profile.nickname || '사용자',
     // 이메일은 동의항목 심사를 통과하고 사용자가 동의했을 때만 내려온다.
-    email: account.email ?? null,
+    email: account.is_email_valid === true && account.is_email_verified === true ? account.email ?? null : null,
     avatarUrl: profile.profile_image_url ?? null,
   }
 }
@@ -179,6 +179,8 @@ const resolveUser = async (c: any, provider: ProviderName, profile: ProviderProf
 
 const appRedirect = (c: any, params: Record<string, string>) => {
   const target = new URL(c.env.APP_REDIRECT_URI)
+  const state = c.req.query('state')
+  if (state) target.searchParams.set('state', state)
   for (const [k, val] of Object.entries(params)) target.searchParams.set(k, val)
   return c.redirect(target.toString(), 302)
 }
@@ -188,9 +190,13 @@ app.get('/api/v1/auth/:provider/start', async (c) => {
   if (provider !== 'google' && provider !== 'kakao') return c.json(fail('지원하지 않는 로그인입니다.', 'UNSUPPORTED_PROVIDER'), 404)
 
   const cfg = providerConfig(c, provider)
-  if (!cfg.clientId) return c.json(fail('로그인 설정이 준비되지 않았습니다.', 'PROVIDER_NOT_CONFIGURED'), 503)
+  if (!cfg.clientId || (provider === 'google' && !cfg.clientSecret)) return c.json(fail('로그인 설정이 준비되지 않았습니다.', 'PROVIDER_NOT_CONFIGURED'), 503)
 
-  const state = randomUrlSafe(16)
+  const requestedState = c.req.query('login_state')
+  if (requestedState && !/^[a-f0-9]{64}$/.test(requestedState)) {
+    return c.json(fail('잘못된 로그인 요청입니다.', 'INVALID_STATE'), 400)
+  }
+  const state = requestedState || randomUrlSafe(32)
   const verifier = randomUrlSafe(32)
   await c.env.DB.prepare('DELETE FROM oauth_states WHERE expires_at < ?').bind(Math.floor(Date.now() / 1000)).run()
   await c.env.DB
@@ -215,14 +221,14 @@ app.get('/api/v1/auth/:provider/callback', async (c) => {
 
   const code = c.req.query('code')
   const state = c.req.query('state')
-  if (c.req.query('error') || !code || !state) return appRedirect(c, { error: 'ACCESS_DENIED' })
+  if (!state) return appRedirect(c, { error: 'INVALID_STATE' })
 
   // state 는 1회용. 조회 즉시 삭제해 재사용을 막는다.
-  const saved = await c.env.DB.prepare('SELECT * FROM oauth_states WHERE state=?').bind(state).first<Row>()
-  if (saved) await c.env.DB.prepare('DELETE FROM oauth_states WHERE state=?').bind(state).run()
+  const saved = await c.env.DB.prepare('DELETE FROM oauth_states WHERE state=? AND provider=? RETURNING *').bind(state, provider).first<Row>()
   if (!saved || saved.provider !== provider || Number(saved.expires_at) < Math.floor(Date.now() / 1000)) {
     return appRedirect(c, { error: 'INVALID_STATE' })
   }
+  if (c.req.query('error') || !code) return appRedirect(c, { error: 'ACCESS_DENIED' })
 
   try {
     const cfg = providerConfig(c, provider)

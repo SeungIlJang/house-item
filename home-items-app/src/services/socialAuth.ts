@@ -34,16 +34,30 @@ export class SocialAuthError extends Error {
   }
 }
 
-const startUrl = (provider: SocialProvider) => API_BASE_URL + '/auth/' + provider + '/start'
+const LOGIN_STATE_KEY = 'home_items_login_state'
+const startUrl = (provider: SocialProvider) => {
+  const state = Array.from(crypto.getRandomValues(new Uint8Array(32)), (v) => v.toString(16).padStart(2, '0')).join('')
+  localStorage.setItem(LOGIN_STATE_KEY, JSON.stringify({ state, expiresAt: Date.now() + 600_000 }))
+  const url = new URL(API_BASE_URL + '/auth/' + provider + '/start')
+  url.searchParams.set('login_state', state)
+  return url.toString()
+}
+
+export function isAuthCallbackUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'com.homeitems.app:' && parsed.host === 'auth'
+      && (parsed.pathname === '' || parsed.pathname === '/')
+  } catch {
+    return false
+  }
+}
 
 // appUrlOpen 리스너는 App.vue 에 하나만 둔다. signInWith() 는 대기자만 등록해 두고,
 // 딥링크가 오면 App.vue 가 consumeCallbackUrl() 로 넘겨준다.
 // (양쪽이 각자 리스너를 걸면 같은 딥링크를 두 번 처리하게 된다)
 // eslint-disable-next-line no-unused-vars
 let pendingHandler: ((url: string) => void) | null = null
-
-/** 소셜 로그인 콜백 딥링크인지. */
-export const isCallbackUrl = (url: string) => url.includes('token=') || url.includes('error=')
 
 /**
  * 대기 중인 signInWith() 에 콜백을 넘긴다.
@@ -59,11 +73,16 @@ export function consumeCallbackUrl(url: string): boolean {
 
 /** 딥링크/리다이렉트 URL 에서 토큰을 꺼낸다. 실패면 SocialAuthError 를 던진다. */
 export function readCallbackUrl(url: string): string {
+  if (!isAuthCallbackUrl(url)) throw new SocialAuthError('LOGIN_FAILED')
   const parsed = new URL(url)
   // 커스텀 스킴(com.homeitems.app://auth?token=)은 search 가 비어있을 수 있어 hash 도 본다.
   const params = parsed.searchParams.size > 0
     ? parsed.searchParams
     : new URLSearchParams(parsed.hash.replace(/^#/, ''))
+  const pending = JSON.parse(localStorage.getItem(LOGIN_STATE_KEY) || 'null')
+  if (!pending || pending.expiresAt < Date.now() || pending.state !== params.get('state')) {
+    throw new SocialAuthError('INVALID_STATE')
+  }
   const error = params.get('error')
   if (error) throw new SocialAuthError(error)
   const token = params.get('token')
@@ -98,6 +117,7 @@ export async function signInWith(provider: SocialProvider): Promise<string> {
   }
 
   function handleUrl(url: string) {
+    if (!isAuthCallbackUrl(url)) return
     if (!settle || !failWith) return
     const resolveFn = settle
     const rejectFn = failWith
