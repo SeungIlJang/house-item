@@ -32,6 +32,8 @@ dist-ssr/
 *.local
 .vite/
 .wrangler/
+# Google Cloud Console 에서 내려받은 OAuth 클라이언트 비밀 파일
+client_secret_*.json
 # Worker 로컬 비밀값 (JWT 키, OAuth client secret)
 .dev.vars
 .dev.vars.*
