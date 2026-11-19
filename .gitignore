@@ -32,6 +32,10 @@ dist-ssr/
 *.local
 .vite/
 .wrangler/
+# Worker 로컬 비밀값 (JWT 키, OAuth client secret)
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
 
 # ===== Capacitor / Mobile (추후) =====
 home-items-app/android/

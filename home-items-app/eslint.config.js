@@ -28,6 +28,15 @@ export default [
     rules: { 'no-undef': 'off' },
   },
   {
+    // node --test 로 실행하는 테스트 파일
+    files: ['tests/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...browserGlobals, Buffer: 'readonly', globalThis: 'readonly', URL: 'readonly' },
+    },
+  },
+  {
     files: ['**/*.vue'],
     languageOptions: {
       parserOptions: { parser: tsParser },

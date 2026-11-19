@@ -1,3 +1,5 @@
+> ⚠️ **이전 구성 문서**: 지금은 Render·PostgreSQL 대신 Cloudflare Workers + D1 + R2 를 씁니다. 현재 절차는 [Cloudflare배포.md](Cloudflare배포.md) 를 보세요.
+
 # Render에 백엔드 배포하기 (단계별)
 
 FastAPI 백엔드 + PostgreSQL 을 Render에 올려 **실제 https 주소**를 만듭니다.
