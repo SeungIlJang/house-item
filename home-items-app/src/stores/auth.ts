@@ -3,8 +3,9 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { authApi } from '@/api'
 import { clearToken, getToken, setToken } from '@/api/client'
-import { signInWith, type SocialProvider } from '@/services/socialAuth'
+import { markLoginSucceeded, signInWith, type SocialProvider } from '@/services/socialAuth'
 import { cancelExpiryReminders } from '@/services/expiryReminder'
+import { forgetLastPlace } from '@/services/lastPlace'
 import type { User } from '@/types/api'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -16,6 +17,7 @@ export const useAuthStore = defineStore('auth', () => {
     setToken(token, true)
     try {
       await fetchMe()
+      markLoginSucceeded() // 다음 로그인 화면에서 이 방식을 "최근 사용"으로 표시한다.
     } catch (error) {
       logout()
       throw error
@@ -36,6 +38,7 @@ export const useAuthStore = defineStore('auth', () => {
   function logout(): void {
     // 다른 계정으로 로그인했을 때 이전 사용자의 물건 알림이 울리지 않도록 지운다.
     void cancelExpiryReminders().catch(() => {})
+    forgetLastPlace() // 다른 계정의 보관 위치가 다음 사용자에게 채워지지 않게 한다.
     clearToken()
     user.value = null
     isAuthenticated.value = false

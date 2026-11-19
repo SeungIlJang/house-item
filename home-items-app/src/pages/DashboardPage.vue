@@ -18,7 +18,7 @@ import {
   IonSpinner,
   onIonViewWillEnter,
 } from '@ionic/vue'
-import { addCircleOutline } from 'ionicons/icons'
+import { cameraOutline } from 'ionicons/icons'
 import { itemApi } from '@/api'
 import ItemCard from '@/components/ItemCard.vue'
 import { extractErrorMessage } from '@/api/client'
@@ -100,10 +100,10 @@ onIonViewWillEnter(load)
               </ion-card>
             </ion-col>
             <ion-col size="6">
-              <ion-card class="stat-card" button @click="router.push('/tabs/add')">
+              <ion-card class="stat-card" button @click="router.push({ path: '/tabs/add', query: { quick: '1' } })">
                 <ion-card-content class="quick-add">
-                  <ion-icon :icon="addCircleOutline" size="large" color="primary" />
-                  <div class="stat-label">빠른 등록</div>
+                  <ion-icon :icon="cameraOutline" size="large" color="primary" />
+                  <div class="stat-label">사진으로 등록</div>
                 </ion-card-content>
               </ion-card>
             </ion-col>

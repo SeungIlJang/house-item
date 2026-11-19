@@ -4,12 +4,14 @@ import { useRouter } from 'vue-router'
 import { IonPage, IonContent, IonButton, IonIcon, IonSpinner, IonText } from '@ionic/vue'
 import { logoGoogle, chatbubbleEllipses } from 'ionicons/icons'
 import { useAuthStore } from '@/stores/auth'
-import { useToast } from '@/composables/useToast'
-import { PROVIDER_LABEL, SocialAuthError, type SocialProvider } from '@/services/socialAuth'
+import { showAlert } from '@/composables/useAlert'
+import { PROVIDER_LABEL, SocialAuthError, describeLoginError, getLastProvider, type SocialProvider } from '@/services/socialAuth'
 
 const router = useRouter()
 const auth = useAuthStore()
-const toast = useToast()
+
+// 지난번에 로그인한 방식. 같은 사람이 다른 방식으로 들어가 계정이 둘로 나뉘지 않도록 그 버튼을 강조한다.
+const lastProvider = getLastProvider()
 
 const pending = ref<SocialProvider | null>(null)
 
@@ -22,7 +24,8 @@ async function signIn(provider: SocialProvider) {
   } catch (e) {
     // 사용자가 직접 취소한 경우는 오류로 알리지 않는다.
     if (e instanceof SocialAuthError && e.code === 'ACCESS_DENIED') return
-    toast.error(e instanceof Error ? e.message : '로그인에 실패했습니다.')
+    const { title, message } = describeLoginError(e)
+    await showAlert(title, message)
   } finally {
     pending.value = null
   }
@@ -36,33 +39,44 @@ async function signIn(provider: SocialProvider) {
         <h1 class="title">집안의모든것</h1>
         <p class="subtitle">우리 집 물건, 어디에 뒀는지 바로 찾기</p>
 
-        <div class="providers">
-          <ion-button
-            expand="block"
-            class="provider google"
-            :disabled="pending !== null"
-            @click="signIn('google')"
-          >
-            <ion-spinner v-if="pending === 'google'" name="crescent" slot="start" />
-            <ion-icon v-else :icon="logoGoogle" slot="start" />
-            {{ PROVIDER_LABEL.google }}로 계속하기
-          </ion-button>
+        <p v-if="lastProvider" class="last-hint">
+          지난번에 <strong>{{ PROVIDER_LABEL[lastProvider] }}</strong>로 로그인했어요
+        </p>
 
-          <ion-button
-            expand="block"
-            class="provider kakao"
-            :disabled="pending !== null"
-            @click="signIn('kakao')"
-          >
-            <ion-spinner v-if="pending === 'kakao'" name="crescent" slot="start" />
-            <ion-icon v-else :icon="chatbubbleEllipses" slot="start" />
-            {{ PROVIDER_LABEL.kakao }}로 계속하기
-          </ion-button>
+        <div class="providers">
+          <div class="provider-wrap" :class="{ recent: lastProvider === 'google' }">
+            <span v-if="lastProvider === 'google'" class="recent-badge">최근 사용</span>
+            <ion-button
+              expand="block"
+              class="provider google"
+              :disabled="pending !== null"
+              @click="signIn('google')"
+            >
+              <ion-spinner v-if="pending === 'google'" name="crescent" slot="start" />
+              <ion-icon v-else :icon="logoGoogle" slot="start" />
+              {{ PROVIDER_LABEL.google }}로 계속하기
+            </ion-button>
+          </div>
+
+          <div class="provider-wrap" :class="{ recent: lastProvider === 'kakao' }">
+            <span v-if="lastProvider === 'kakao'" class="recent-badge">최근 사용</span>
+            <ion-button
+              expand="block"
+              class="provider kakao"
+              :disabled="pending !== null"
+              @click="signIn('kakao')"
+            >
+              <ion-spinner v-if="pending === 'kakao'" name="crescent" slot="start" />
+              <ion-icon v-else :icon="chatbubbleEllipses" slot="start" />
+              {{ PROVIDER_LABEL.kakao }}로 계속하기
+            </ion-button>
+          </div>
         </div>
 
         <ion-text color="medium">
           <p class="notice">
-            로그인하면 서비스 이용약관과 개인정보 처리방침에 동의하는 것으로 봅니다.
+            로그인하면 <router-link to="/terms">서비스 이용약관</router-link>과
+            <router-link to="/privacy">개인정보 처리방침</router-link>에 동의하는 것으로 봅니다.
           </p>
         </ion-text>
       </div>
@@ -110,6 +124,38 @@ async function signIn(provider: SocialProvider) {
   --background: #fee500;
   --background-activated: #f0d900;
   --color: #191600;
+}
+.last-hint {
+  text-align: center;
+  font-size: 14px;
+  color: var(--ion-color-primary);
+  margin: -24px 0 20px;
+}
+.provider-wrap {
+  position: relative;
+}
+/* 최근 사용한 버튼: 테두리 링으로 눈에 띄게 */
+.provider-wrap.recent .provider {
+  outline: 2px solid var(--ion-color-primary);
+  outline-offset: 3px;
+  border-radius: 12px;
+}
+.recent-badge {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  z-index: 2;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ion-color-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+}
+.notice a {
+  color: inherit;
+  text-decoration: underline;
 }
 .notice {
   margin-top: 28px;

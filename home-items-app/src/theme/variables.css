@@ -12,3 +12,8 @@
 .ion-margin-top-sm {
   margin-top: 8px;
 }
+
+/* 팝업 메시지 줄바꿈 유지 (composables/useAlert.ts) */
+.alert-pre-line .alert-message {
+  white-space: pre-line;
+}

@@ -7,7 +7,6 @@ import {
   IonToolbar,
   IonTitle,
   IonButtons,
-  IonBackButton,
   IonButton,
   IonContent,
   IonIcon,
@@ -19,8 +18,12 @@ import {
   IonModal,
   alertController,
   onIonViewWillEnter,
+  onIonViewDidEnter,
+  onIonViewWillLeave,
+  useBackButton,
+  useIonRouter,
 } from '@ionic/vue'
-import { createOutline, trashOutline, closeOutline } from 'ionicons/icons'
+import { arrowBackOutline, createOutline, trashOutline, closeOutline } from 'ionicons/icons'
 import { Swiper, SwiperSlide } from 'swiper/vue'
 import { Zoom } from 'swiper/modules'
 import 'swiper/css'
@@ -35,6 +38,28 @@ import type { Item } from '@/types/api'
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const ionRouter = useIonRouter()
+
+// 뒤로가기: 목록에서 들어왔으면 그 목록으로, 등록 직후·알림·직접 주소로 들어왔으면 물건 목록(찾기 탭)으로 간다.
+// (등록 직후 그냥 뒤로 가면 비어 있는 등록 화면으로 돌아가기 때문)
+const ITEM_LIST_PATH = '/tabs/search'
+function goBack() {
+  if (route.query.from !== 'add' && ionRouter.canGoBack()) {
+    ionRouter.back()
+    return
+  }
+  ionRouter.navigate(ITEM_LIST_PATH, 'back', 'replace')
+}
+
+// 안드로이드 하드웨어 뒤로가기도 같은 규칙을 따른다. 이 화면이 보일 때만 등록한다.
+let hardwareBack: { unregister: () => void } | null = null
+onIonViewDidEnter(() => {
+  hardwareBack = useBackButton(10, goBack)
+})
+onIonViewWillLeave(() => {
+  hardwareBack?.unregister()
+  hardwareBack = null
+})
 
 const loading = ref(true)
 const item = ref<Item | null>(null)
@@ -73,7 +98,7 @@ async function confirmDelete() {
             await itemApi.remove(Number(route.params.id))
             void syncExpiryReminders()
             toast.success('삭제되었습니다.')
-            router.back()
+            goBack()
           } catch (e) {
             toast.error(extractErrorMessage(e))
           }
@@ -92,7 +117,9 @@ onIonViewWillEnter(load)
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-back-button default-href="/tabs/home" />
+          <ion-button aria-label="뒤로" @click="goBack">
+            <ion-icon slot="icon-only" :icon="arrowBackOutline" />
+          </ion-button>
         </ion-buttons>
         <ion-title>물건 상세</ion-title>
         <ion-buttons slot="end" v-if="item">

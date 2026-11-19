@@ -26,6 +26,7 @@ import { roomApi } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type { Room } from '@/types/api'
+import { rememberPickedRoom } from '@/services/placePicker'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +35,10 @@ const toast = useToast()
 const homeId = Number(route.params.homeId)
 const loading = ref(true)
 const rooms = ref<Room[]>([])
+
+// 물건 등록 화면에서 "보관장소 등록"으로 들어온 경우: 등록 창을 바로 열고, 등록하면 물건 등록으로 돌아간다.
+const fromItemForm = route.query.returnTo === 'item'
+let autoCreateOpened = false
 
 async function load() {
   loading.value = true
@@ -57,7 +62,13 @@ async function promptCreate() {
         handler: async (data) => {
           if (!data.name?.trim()) return
           try {
-            await roomApi.create(homeId, data.name.trim())
+            const room = await roomApi.create(homeId, data.name.trim())
+            if (fromItemForm) {
+              rememberPickedRoom({ homeId, roomId: room.id })
+              toast.success(`'${room.name}' 보관장소를 등록했어요.`)
+              router.back()
+              return
+            }
             await load()
           } catch (e) {
             toast.error(extractErrorMessage(e))
@@ -115,7 +126,14 @@ async function confirmDelete(room: Room) {
   await alert.present()
 }
 
-onIonViewWillEnter(load)
+onIonViewWillEnter(async () => {
+  await load()
+  // 물건 등록에서 넘어왔다면 등록 창을 바로 띄운다(한 번만).
+  if (route.query.create === '1' && !autoCreateOpened) {
+    autoCreateOpened = true
+    await promptCreate()
+  }
+})
 </script>
 
 <template>

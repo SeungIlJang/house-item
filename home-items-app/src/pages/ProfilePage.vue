@@ -20,7 +20,7 @@ import {
   onIonViewWillEnter,
 } from '@ionic/vue'
 import { ref } from 'vue'
-import { pricetagsOutline, gridOutline, logOutOutline, notificationsOutline, timeOutline } from 'ionicons/icons'
+import { pricetagsOutline, gridOutline, logOutOutline, notificationsOutline, timeOutline, documentTextOutline, shieldCheckmarkOutline } from 'ionicons/icons'
 import {
   REMINDER_HOUR,
   getReminderSettings,
@@ -30,6 +30,7 @@ import {
 } from '@/services/expiryReminder'
 import { useAuthStore } from '@/stores/auth'
 import { authApi } from '@/api'
+import { forgetLastProvider } from '@/services/socialAuth'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 
@@ -63,6 +64,7 @@ async function deleteAccount() {
   await loading.present()
   try {
     await authApi.deleteAccount()
+    forgetLastProvider() // 탈퇴한 계정의 로그인 방식은 더 이상 권하지 않는다.
     auth.logout()
     await router.replace('/login')
     toast.success('탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.')
@@ -121,6 +123,20 @@ async function confirmDeleteAccount() {
         <ion-item button @click="router.push('/tags')">
           <ion-icon slot="start" :icon="pricetagsOutline" />
           <ion-label>태그 관리</ion-label>
+        </ion-item>
+      </ion-list>
+
+      <ion-list>
+        <ion-list-header>
+          <ion-label>약관 및 정책</ion-label>
+        </ion-list-header>
+        <ion-item button detail @click="router.push('/terms')">
+          <ion-icon slot="start" :icon="documentTextOutline" />
+          <ion-label>서비스 이용약관</ion-label>
+        </ion-item>
+        <ion-item button detail @click="router.push('/privacy')">
+          <ion-icon slot="start" :icon="shieldCheckmarkOutline" />
+          <ion-label>개인정보 처리방침</ion-label>
         </ion-item>
       </ion-list>
 

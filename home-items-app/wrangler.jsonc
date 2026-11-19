@@ -1,0 +1,12 @@
+// 웹 버전 배포 설정. 빌드 결과(dist)를 Cloudflare Workers 정적 자산으로 서빙한다(무료).
+// 배포: npm run deploy:web  →  https://home-items.season-masil.workers.dev
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "home-items",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // /auth/callback 같은 앱 내부 주소로 바로 들어와도 index.html 을 돌려준다.
+    "not_found_handling": "single-page-application"
+  }
+}

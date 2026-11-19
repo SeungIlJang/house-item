@@ -58,7 +58,13 @@ client.interceptors.response.use(
 // 백엔드 오류 메시지를 뽑아내는 헬퍼
 export function extractErrorMessage(error: unknown, fallback = '오류가 발생했습니다.'): string {
   if (axios.isAxiosError(error)) {
-    return error.response?.data?.message ?? fallback
+    // 응답 자체를 못 받았다면(인터넷 끊김·서버 연결 실패·시간 초과) 원인을 알려 준다.
+    if (!error.response) {
+      return error.code === 'ECONNABORTED'
+        ? '응답이 너무 늦어요. 잠시 후 다시 시도해 주세요.'
+        : '인터넷 연결을 확인한 뒤 다시 시도해 주세요.'
+    }
+    return error.response.data?.message ?? fallback
   }
   return fallback
 }

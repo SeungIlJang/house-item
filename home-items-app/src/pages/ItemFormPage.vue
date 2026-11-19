@@ -30,6 +30,8 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { homeApi, roomApi, storageApi, categoryApi, tagApi, itemApi, imageUrl } from '@/api'
 import { compressImage } from '@/services/imageCompress'
 import { syncExpiryReminders } from '@/services/expiryReminder'
+import { takePickedRoom } from '@/services/placePicker'
+import { getLastPlace, saveLastPlace } from '@/services/lastPlace'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type {
@@ -145,6 +147,13 @@ async function changeHome() {
   await alert.present()
 }
 
+// 고른 집에 보관장소가 없을 때: 그 집의 보관장소 화면으로 가서 등록 창을 바로 연다.
+// 등록하면 이 화면으로 돌아와 새 보관장소가 선택된다(placePicker 참고). 작성 중인 내용은 그대로 남는다.
+function goCreateRoom() {
+  if (!form.value.homeId) return
+  router.push({ path: `/homes/${form.value.homeId}/rooms`, query: { create: '1', returnTo: 'item' } })
+}
+
 async function onRoomChange() {
   form.value.storageLocationId = null
   await loadStorages(form.value.roomId)
@@ -178,6 +187,16 @@ function base64ToFile(base64: string, format?: string): File {
   const bytes = new Uint8Array(bin.length)
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
   return new File([bytes], `photo_${Date.now()}.${format || 'jpg'}`, { type })
+}
+
+// 웹(모바일 브라우저)에서는 capture 속성이 있는 입력으로 카메라를 연다. PC 에서는 파일 선택 창이 열린다.
+const cameraInput = ref<HTMLInputElement | null>(null)
+
+/** 사진 촬영. 앱은 카메라 플러그인, 웹은 카메라 입력을 쓴다. */
+function takePhoto() {
+  if (isNative) return addFromCamera()
+  // 브라우저가 사용자 동작 없이 여는 것을 막으면 조용히 넘어간다(버튼을 직접 누르면 열린다).
+  cameraInput.value?.click()
 }
 
 // 촬영 → 사진 1장 추가 (썸네일 즉시 표시)
@@ -285,27 +304,61 @@ async function load() {
       await loadRooms(item.homeId)
       await loadStorages(item.roomId)
     } else if (homes.value.length > 0) {
-      form.value.homeId = homes.value[0].id
+      // 보관장소를 만들고 돌아온 경우처럼 이미 고른 집이 있으면 유지한다.
+      if (!homes.value.some((h) => h.id === form.value.homeId)) form.value.homeId = homes.value[0].id
       await loadRooms(form.value.homeId)
       // 장소는 최초에 '선택' 상태 — 사용자가 직접 선택
+    }
+
+    // 방금 새로 만든 보관장소가 있으면 자동으로 선택한다.
+    const picked = takePickedRoom()
+    if (picked && picked.homeId === form.value.homeId && rooms.value.some((r) => r.id === picked.roomId)) {
+      form.value.roomId = picked.roomId
+      form.value.storageLocationId = null
+      await loadStorages(picked.roomId)
+    } else if (!isEdit.value && !form.value.roomId) {
+      await applyLastPlace()
     }
   } catch (e) {
     toast.error(extractErrorMessage(e))
   } finally {
     loading.value = false
   }
+
+  // 홈의 [사진으로 등록]으로 들어왔으면 카메라를 바로 연다(한 번만).
+  // 로딩이 끝나 화면(카메라 입력)이 그려진 뒤에 열어야 한다.
+  if (!isEdit.value && route.query.quick === '1') {
+    await router.replace({ path: route.path })
+    await nextTick()
+    if (homes.value.length > 0) void takePhoto()
+  }
 }
 
-function reset() {
+// 지난번에 등록한 보관 위치를 미리 채운다. 그 사이 지워졌을 수 있으므로 아직 있는지 확인하며 단계별로 적용한다.
+async function applyLastPlace() {
+  const last = getLastPlace()
+  if (!last || !homes.value.some((h) => h.id === last.homeId)) return
+  if (form.value.homeId !== last.homeId) {
+    form.value.homeId = last.homeId
+    await loadRooms(last.homeId)
+  }
+  if (!rooms.value.some((r) => r.id === last.roomId)) return
+  form.value.roomId = last.roomId
+  await loadStorages(last.roomId)
+  form.value.storageLocationId = storages.value.some((s) => s.id === last.storageLocationId) ? last.storageLocationId : null
+}
+
+// keepPlace: 계속 등록할 때는 보관 위치를 그대로 둔다.
+function reset(keepPlace = false) {
   form.value = {
     name: '',
     quantity: 1,
     description: '',
     purchaseDate: '',
     expirationDate: '',
-    homeId: homes.value[0]?.id ?? null,
-    roomId: null,
-    storageLocationId: null,
+    homeId: keepPlace ? form.value.homeId : homes.value[0]?.id ?? null,
+    roomId: keepPlace ? form.value.roomId : null,
+    storageLocationId: keepPlace ? form.value.storageLocationId : null,
     categoryId: null,
     tagIds: [],
   }
@@ -339,16 +392,25 @@ async function cancelForm() {
   router.push('/tabs/home')
 }
 
-async function save() {
+// 이번에 연달아 등록한 개수(계속 등록 중 안내용)
+const streak = ref(0)
+
+// then: view = 저장 후 상세 화면으로, continue = 같은 보관 위치로 다음 물건을 바로 등록
+async function save(then: 'view' | 'continue' = 'view') {
   if (!form.value.homeId) {
     toast.error('집을 선택해주세요. 먼저 보관 장소에서 집을 등록하세요.')
     return
   }
   if (!form.value.roomId) {
+    const noRooms = rooms.value.length === 0
     const alert = await alertController.create({
-      header: '보관장소를 선택해주세요',
-      message: '물건을 등록하려면 보관장소를 먼저 선택해야 합니다.',
-      buttons: ['확인'],
+      header: noRooms ? '보관장소가 없어요' : '보관장소를 선택해주세요',
+      message: noRooms
+        ? '이 집에 등록된 보관장소가 없습니다. 보관장소를 먼저 등록해 주세요. 작성 중인 내용은 그대로 남아요.'
+        : '물건을 등록하려면 보관장소를 먼저 선택해야 합니다.',
+      buttons: noRooms
+        ? [{ text: '취소', role: 'cancel' }, { text: '보관장소 등록', handler: () => goCreateRoom() }]
+        : ['확인'],
     })
     await alert.present()
     return
@@ -386,12 +448,23 @@ async function save() {
     }
 
     void syncExpiryReminders()
+    if (!isEdit.value && form.value.homeId && form.value.roomId) {
+      saveLastPlace({ homeId: form.value.homeId, roomId: form.value.roomId, storageLocationId: form.value.storageLocationId })
+    }
+    if (!isEdit.value && then === 'continue') {
+      streak.value += 1
+      toast.success(`${streak.value}개 등록했어요. 다음 물건을 찍어 주세요.`)
+      reset(true)
+      void takePhoto()
+      return
+    }
+    streak.value = 0
     toast.success(isEdit.value ? '수정되었습니다.' : '등록되었습니다.')
     if (isEdit.value) {
       router.back()
     } else {
       reset()
-      router.push(`/items/${saved.id}`)
+      router.push({ path: `/items/${saved.id}`, query: { from: 'add' } }) // 상세에서 뒤로가면 목록으로
     }
   } catch (e) {
     toast.error(extractErrorMessage(e, '저장에 실패했습니다.'))
@@ -429,13 +502,67 @@ onIonViewWillEnter(load)
 
       <div v-if="loading" class="center"><ion-spinner /></div>
       <template v-else>
+        <div v-if="homes.length > 0" class="ion-padding-horizontal photo-first">
+          <ion-label class="section">사진</ion-label>
+          <p v-if="!isEdit" class="photo-hint">사진만 찍어도 등록할 수 있어요. 이름은 나중에 적어도 됩니다.</p>
+
+          <div v-if="images.length || pendingPhotos.length" class="images">
+            <!-- 이미 저장된 사진(수정 화면) -->
+            <div v-for="img in images" :key="img.id" class="img-box">
+              <img :src="imageUrl(img.imageUrl)" alt="" />
+              <ion-icon :icon="trashOutline" class="del" @click="deleteExistingImage(img.id)" />
+            </div>
+            <!-- 새로 추가한 사진 미리보기 -->
+            <div v-for="(p, idx) in pendingPhotos" :key="'p' + idx" class="img-box">
+              <img :src="p.previewUrl" alt="" />
+              <ion-icon :icon="trashOutline" class="del" @click="removePendingPhoto(idx)" />
+            </div>
+          </div>
+
+          <div class="photo-actions">
+            <ion-button fill="solid" size="default" @click="takePhoto">
+              <ion-icon slot="start" :icon="cameraOutline" />
+              사진 촬영
+            </ion-button>
+            <ion-button fill="outline" size="default" @click="openGallery">
+              <ion-icon slot="start" :icon="imagesOutline" />
+              갤러리
+            </ion-button>
+          </div>
+
+          <input
+            ref="fileInput"
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            @change="onFilesSelected"
+          />
+          <input
+            ref="cameraInput"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            @change="onFilesSelected"
+          />
+        </div>
+
         <div v-if="homes.length === 0" class="empty">
           <p>먼저 집을 등록해야 물건을 추가할 수 있어요.</p>
           <ion-button @click="router.push('/tabs/places')">보관 장소로 이동</ion-button>
         </div>
 
         <ion-list v-else>
-          <ion-item>
+          <!-- 고른 집에 보관장소가 하나도 없으면 고를 게 없으므로 등록 화면으로 안내한다. -->
+          <ion-item v-if="rooms.length === 0" button detail @click="goCreateRoom">
+            <ion-label>
+              <p>보관장소 *</p>
+              <h3>등록된 보관장소가 없어요</h3>
+              <p class="create-room-link">눌러서 보관장소 등록하기</p>
+            </ion-label>
+          </ion-item>
+          <ion-item v-else>
             <ion-select
               label="보관장소 *"
               label-placement="stacked"
@@ -538,46 +665,14 @@ onIonViewWillEnter(load)
           </ion-accordion>
         </ion-accordion-group>
 
-        <div v-if="homes.length > 0" class="ion-padding-horizontal">
-          <ion-label class="section">사진</ion-label>
-
-          <div v-if="images.length || pendingPhotos.length" class="images">
-            <!-- 이미 저장된 사진(수정 화면) -->
-            <div v-for="img in images" :key="img.id" class="img-box">
-              <img :src="imageUrl(img.imageUrl)" alt="" />
-              <ion-icon :icon="trashOutline" class="del" @click="deleteExistingImage(img.id)" />
-            </div>
-            <!-- 새로 추가한 사진 미리보기 -->
-            <div v-for="(p, idx) in pendingPhotos" :key="'p' + idx" class="img-box">
-              <img :src="p.previewUrl" alt="" />
-              <ion-icon :icon="trashOutline" class="del" @click="removePendingPhoto(idx)" />
-            </div>
-          </div>
-
-          <div class="photo-actions">
-            <ion-button v-if="isNative" fill="outline" size="default" @click="addFromCamera">
-              <ion-icon slot="start" :icon="cameraOutline" />
-              사진 촬영
-            </ion-button>
-            <ion-button fill="outline" size="default" @click="openGallery">
-              <ion-icon slot="start" :icon="imagesOutline" />
-              갤러리
-            </ion-button>
-          </div>
-
-          <input
-            ref="fileInput"
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            @change="onFilesSelected"
-          />
-        </div>
-
         <div v-if="homes.length > 0" class="ion-padding">
-          <ion-button expand="block" :disabled="saving" @click="save">
+          <ion-button expand="block" :disabled="saving" @click="save('view')">
             {{ saving ? '저장 중...' : isEdit ? '수정 완료' : '등록하기' }}
+          </ion-button>
+          <!-- 같은 보관 위치의 물건을 연달아 등록: 저장 후 바로 다음 사진을 찍는다 -->
+          <ion-button v-if="!isEdit" expand="block" fill="outline" :disabled="saving" @click="save('continue')">
+            <ion-icon slot="start" :icon="cameraOutline" />
+            저장하고 계속 등록
           </ion-button>
         </div>
       </template>
@@ -586,6 +681,18 @@ onIonViewWillEnter(load)
 </template>
 
 <style scoped>
+.photo-first {
+  padding-top: 12px;
+}
+.photo-hint {
+  margin: 4px 0 8px;
+  font-size: 13px;
+  color: var(--ion-color-medium);
+}
+.create-room-link {
+  color: var(--ion-color-primary) !important;
+  font-weight: 600;
+}
 .center {
   display: flex;
   justify-content: center;
