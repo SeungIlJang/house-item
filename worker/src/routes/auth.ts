@@ -1,6 +1,7 @@
 import type { App, Row } from '../types.ts'
 import { fail } from '../lib/http.ts'
 import { b64url, makeToken } from '../lib/jwt.ts'
+import { createDefaultHome } from '../lib/defaults.ts'
 
 export function registerAuthRoutes(app: App) {
   // ──────────────────────────────────────────────────────────────
@@ -98,6 +99,8 @@ export function registerAuthRoutes(app: App) {
         .prepare('INSERT INTO users(email,name,avatar_url) VALUES(?,?,?)')
         .bind(profile.email, profile.name, profile.avatarUrl).run()
       userId = Number(created.meta.last_row_id)
+      // 가입 직후 바로 물건을 등록할 수 있도록 기본 집과 보관장소를 만든다. 실패해도 로그인은 계속한다.
+      await createDefaultHome(c.env.DB, userId).catch((error) => console.error('default home failed', (error as Error)?.message))
     }
 
     await c.env.DB
@@ -106,12 +109,28 @@ export function registerAuthRoutes(app: App) {
     return userId
   }
 
-  const appRedirect = (c: any, params: Record<string, string>) => {
-    const target = new URL(c.env.APP_REDIRECT_URI)
+  /**
+   * 로그인 결과를 돌려보낸다.
+   * - 앱: APP_REDIRECT_URI(커스텀 스킴) 의 쿼리로 전달한다.
+   * - 웹: /start 에서 허용 목록으로 검증해 저장해 둔 return_to 로 보낸다.
+   *   토큰은 # 뒤(fragment)에 넣어 서버 로그·Referer 에 남지 않게 한다.
+   */
+  const appRedirect = (c: any, params: Record<string, string>, returnTo?: string | null) => {
+    const target = new URL(returnTo || c.env.APP_REDIRECT_URI)
+    const values = new URLSearchParams()
     const state = c.req.query('state')
-    if (state) target.searchParams.set('state', state)
-    for (const [k, val] of Object.entries(params)) target.searchParams.set(k, val)
+    if (state) values.set('state', state)
+    for (const [k, val] of Object.entries(params)) values.set(k, val)
+    if (returnTo) target.hash = values.toString()
+    else values.forEach((val, k) => target.searchParams.set(k, val))
     return c.redirect(target.toString(), 302)
+  }
+
+  /** 웹 복귀 주소는 WEB_REDIRECT_URIS(쉼표 구분) 에 정확히 같은 값이 있을 때만 허용한다. */
+  const allowedReturnTo = (c: any, value: string | undefined) => {
+    if (!value) return null
+    const allowed = String(c.env.WEB_REDIRECT_URIS ?? '').split(',').map((v) => v.trim()).filter(Boolean)
+    return allowed.includes(value) ? value : undefined
   }
 
   app.get('/api/v1/auth/:provider/start', async (c) => {
@@ -125,12 +144,14 @@ export function registerAuthRoutes(app: App) {
     if (requestedState && !/^[a-f0-9]{64}$/.test(requestedState)) {
       return c.json(fail('잘못된 로그인 요청입니다.', 'INVALID_STATE'), 400)
     }
+    const returnTo = allowedReturnTo(c, c.req.query('return_to'))
+    if (returnTo === undefined) return c.json(fail('허용되지 않은 복귀 주소입니다.', 'INVALID_RETURN_TO'), 400)
     const state = requestedState || randomUrlSafe(32)
     const verifier = randomUrlSafe(32)
     await c.env.DB.prepare('DELETE FROM oauth_states WHERE expires_at < ?').bind(Math.floor(Date.now() / 1000)).run()
     await c.env.DB
-      .prepare('INSERT INTO oauth_states(state,provider,code_verifier,expires_at) VALUES(?,?,?,?)')
-      .bind(state, provider, verifier, Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS).run()
+      .prepare('INSERT INTO oauth_states(state,provider,code_verifier,expires_at,return_to) VALUES(?,?,?,?,?)')
+      .bind(state, provider, verifier, Math.floor(Date.now() / 1000) + STATE_TTL_SECONDS, returnTo).run()
 
     const url = new URL(cfg.authorizeUrl)
     url.searchParams.set('client_id', cfg.clientId)
@@ -157,7 +178,9 @@ export function registerAuthRoutes(app: App) {
     if (!saved || saved.provider !== provider || Number(saved.expires_at) < Math.floor(Date.now() / 1000)) {
       return appRedirect(c, { error: 'INVALID_STATE' })
     }
-    if (c.req.query('error') || !code) return appRedirect(c, { error: 'ACCESS_DENIED' })
+    // 웹에서 시작한 로그인이면 결과를 그 웹 주소로 돌려보낸다(시작 때 허용 목록으로 검증됨).
+    const back = saved.return_to ? String(saved.return_to) : null
+    if (c.req.query('error') || !code) return appRedirect(c, { error: 'ACCESS_DENIED' }, back)
 
     try {
       const cfg = providerConfig(c, provider)
@@ -175,16 +198,24 @@ export function registerAuthRoutes(app: App) {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: form,
       })
-      if (!tokenRes.ok) return appRedirect(c, { error: 'TOKEN_EXCHANGE_FAILED' })
+      if (!tokenRes.ok) {
+        // 원인 파악용으로 제공자의 오류 코드만 남긴다(토큰·키는 응답에 없고, 남기지도 않는다).
+        const body = await tokenRes.json<Row>().catch(() => ({} as Row))
+        console.warn('oauth token exchange failed', { provider, status: tokenRes.status, error: body.error, errorCode: body.error_code, description: body.error_description })
+        // 제공자 오류 코드(예: KOE010)를 함께 넘겨 화면에서 원인을 바로 알 수 있게 한다. 비밀 정보는 들어 있지 않다.
+        const detail = String(body.error_code || body.error || `HTTP ${tokenRes.status}`).replace(/[^\w .-]/g, '').slice(0, 40)
+        return appRedirect(c, { error: 'TOKEN_EXCHANGE_FAILED', detail }, back)
+      }
       const token = await tokenRes.json<Row>()
-      if (!token.access_token) return appRedirect(c, { error: 'TOKEN_EXCHANGE_FAILED' })
+      if (!token.access_token) return appRedirect(c, { error: 'TOKEN_EXCHANGE_FAILED' }, back)
 
       const profile = await fetchProfile(provider, token.access_token)
       const userId = await resolveUser(c, provider, profile)
       const accessToken = await makeToken(userId, c.env.JWT_SECRET_KEY, true)
-      return appRedirect(c, { token: accessToken })
-    } catch {
-      return appRedirect(c, { error: 'LOGIN_FAILED' })
+      return appRedirect(c, { token: accessToken }, back)
+    } catch (error) {
+      console.error('oauth login failed', { provider, message: (error as Error)?.message })
+      return appRedirect(c, { error: 'LOGIN_FAILED' }, back)
     }
   })
 }

@@ -5,6 +5,7 @@ import { entityJson } from '../lib/json.ts'
 import { ownedHome, ownedRoom, ownedStorage, requireOwned } from '../lib/owned.ts'
 import { deleteObjects, imageKeys } from '../lib/cleanup.ts'
 import { storagePathsStatement, toPathMap } from '../lib/storagePaths.ts'
+import { LIMITS } from '../lib/limits.ts'
 
 export function registerItemRoutes(app: App) {
   // ──────────────────────────────────────────────────────────────
@@ -165,6 +166,8 @@ export function registerItemRoutes(app: App) {
     const db = c.env.DB
     const userId = c.get('userId')
     const input = await itemInput(db, userId, await readBody(c))
+    const owned = await db.prepare('SELECT count(*) AS n FROM items WHERE user_id=?').bind(userId).first<Row>()
+    if (Number(owned?.n) >= LIMITS.itemsPerUser) throw invalid(`물건은 ${LIMITS.itemsPerUser}개까지 등록할 수 있습니다.`, 'ITEM_QUOTA')
     const created = await db.prepare('INSERT INTO items(user_id,home_id,room_id,storage_location_id,category_id,name,description,quantity,memo,purchase_date,expiration_date) VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING id')
       .bind(userId, input.homeId, input.roomId, input.storageLocationId, input.categoryId, input.name, input.description, input.quantity, input.memo, input.purchaseDate, input.expirationDate).first<Row>()
     const id = Number(created!.id)
@@ -211,6 +214,15 @@ export function registerItemRoutes(app: App) {
     const file = form.get('file')
     if (!(file instanceof File)) throw invalid('이미지 파일이 필요합니다.', 'INVALID_FILE')
     if (file.size > MAX_IMAGE_BYTES) throw new ApiError(413, 'FILE_TOO_LARGE', '이미지는 10MB 이하여야 합니다.')
+    // 사용량 제한(lib/limits.ts). 물건당 · 사용자 총량 · 최근 24시간 업로드 수를 쿼리 한 번으로 센다.
+    const usage = await c.env.DB.prepare(`
+      SELECT coalesce(sum(ii.item_id = ?), 0) AS on_item,
+             count(*) AS total,
+             coalesce(sum(ii.created_at >= datetime('now', '-1 day')), 0) AS recent
+      FROM item_images ii JOIN items i ON i.id = ii.item_id WHERE i.user_id = ?`).bind(itemId, c.get('userId')).first<Row>()
+    if (Number(usage?.on_item) >= LIMITS.imagesPerItem) throw invalid(`사진은 물건당 ${LIMITS.imagesPerItem}장까지 올릴 수 있습니다.`, 'IMAGE_LIMIT')
+    if (Number(usage?.total) >= LIMITS.imagesPerUser) throw invalid(`사진은 모두 ${LIMITS.imagesPerUser}장까지 보관할 수 있습니다. 쓰지 않는 사진을 지운 뒤 다시 시도해 주세요.`, 'IMAGE_QUOTA')
+    if (Number(usage?.recent) >= LIMITS.uploadsPerDay) throw new ApiError(429, 'UPLOAD_RATE_LIMIT', `하루에 올릴 수 있는 사진 수(${LIMITS.uploadsPerDay}장)를 넘었습니다. 내일 다시 시도해 주세요.`)
 
     // 확장자와 MIME 이 모두 이미지일 때만 받는다. MIME 없이 온 파일은 multipart 에서
     // application/octet-stream 이 되므로, 그때는 확장자로 MIME 을 정한다.

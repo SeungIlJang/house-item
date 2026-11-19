@@ -6,8 +6,11 @@
   "observability": { "enabled": true },
   "vars": {
     "APP_ENV": "production",
-    "CORS_ORIGINS": "https://localhost",
+    // https://localhost = 안드로이드 앱 WebView, 나머지 = 웹 버전(home-items-app/wrangler.jsonc)
+    "CORS_ORIGINS": "https://localhost,https://home-items.season-masil.workers.dev",
     "APP_REDIRECT_URI": "com.homeitems.app://auth",
+    // 웹 소셜 로그인 복귀 허용 주소(쉼표 구분). 목록에 없는 주소로는 토큰을 보내지 않는다.
+    "WEB_REDIRECT_URIS": "https://home-items.season-masil.workers.dev/auth/callback",
     "R2_PUBLIC_BASE_URL": "https://pub-fa27dec30c6241889d42241398b188fa.r2.dev"
   },
   "d1_databases": [

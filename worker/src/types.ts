@@ -14,6 +14,7 @@ export type Bindings = {
   KAKAO_CLIENT_SECRET: string
   KAKAO_ADMIN_KEY?: string // 선택. 있으면 회원 탈퇴 시 카카오 앱 연결을 끊는다.
   APP_REDIRECT_URI: string // 예: com.homeitems.app://auth
+  WEB_REDIRECT_URIS?: string // 웹 로그인 복귀 허용 주소(쉼표 구분). 예: https://home-items.pages.dev/auth/callback
 }
 export type Variables = { userId: number }
 export type Row = Record<string, any>

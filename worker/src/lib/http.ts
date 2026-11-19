@@ -12,9 +12,9 @@ export const fail = (message: string, errorCode: string) => ({ success: false, d
 
 // 테스트가 node --experimental-strip-types 로 실행되므로 생성자 매개변수 속성 문법은 쓰지 않는다.
 export class ApiError extends Error {
-  status: 400 | 404 | 409 | 413 | 422
+  status: 400 | 404 | 409 | 413 | 422 | 429
   code: string
-  constructor(status: 400 | 404 | 409 | 413 | 422, code: string, message: string) {
+  constructor(status: 400 | 404 | 409 | 413 | 422 | 429, code: string, message: string) {
     super(message)
     this.status = status
     this.code = code
