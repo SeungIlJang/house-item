@@ -1,0 +1,269 @@
+// API 동작 검증. 실제 마이그레이션을 적용한 SQLite 위에서 Worker 를 그대로 실행한다.
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import { setup, imageForm } from './helpers/env.mjs'
+
+/** 집 → 방 → 수납공간(3단계) → 카테고리 → 태그 2개를 만든다. */
+async function seed(call, prefix = '') {
+  const home = (await call('POST', '/homes', { name: `${prefix}우리집` })).data
+  const room = (await call('POST', `/homes/${home.id}/rooms`, { name: '안방' })).data
+  const s1 = (await call('POST', `/rooms/${room.id}/storage-locations`, { name: '붙박이장' })).data
+  const s2 = (await call('POST', `/rooms/${room.id}/storage-locations`, { name: '서랍', parentId: s1.id })).data
+  const s3 = (await call('POST', `/rooms/${room.id}/storage-locations`, { name: '두 번째 칸', parentId: s2.id })).data
+  const category = (await call('POST', '/categories', { name: `${prefix}서류` })).data
+  const tag1 = (await call('POST', '/tags', { name: `${prefix}중요` })).data
+  const tag2 = (await call('POST', '/tags', { name: `${prefix}여행` })).data
+  return { home, room, s1, s2, s3, category, tag1, tag2 }
+}
+
+test('입력 검증: 잘못된 입력은 500 이 아니라 400/404/422', async () => {
+  const { user } = setup()
+  const { call } = await user()
+  assert.equal((await call('POST', '/homes', {})).code, 'VALIDATION_ERROR')
+  assert.equal((await call('POST', '/homes', { name: '   ' })).status, 422)
+  assert.equal((await call('POST', '/homes', { name: 'x'.repeat(101) })).status, 422)
+  assert.equal((await call('POST', '/homes', { name: 123 })).status, 422)
+  assert.equal((await call('POST', '/homes', undefined, { raw: '{oops' })).code, 'INVALID_JSON')
+  assert.equal((await call('POST', '/homes', [1, 2])).status, 400)
+  assert.equal((await call('GET', '/homes/abc')).status, 404)
+  assert.equal((await call('GET', '/homes/99999')).status, 404)
+
+  const { home, room } = await seed(call)
+  const base = { homeId: home.id, roomId: room.id, name: '여권' }
+  assert.equal((await call('POST', '/items', { ...base, purchaseDate: '2026-02-30' })).status, 422)
+  assert.equal((await call('POST', '/items', { ...base, purchaseDate: '2026-05-01', expirationDate: '2026-04-01' })).status, 422)
+  assert.equal((await call('POST', '/items', { ...base, quantity: -1 })).status, 422)
+  assert.equal((await call('POST', '/items', { ...base, quantity: 1.5 })).status, 422)
+  assert.equal((await call('POST', '/items', { ...base, tagIds: 'x' })).status, 422)
+  assert.equal((await call('GET', '/items/search?room_id=abc')).status, 422)
+  assert.equal((await call('GET', '/items?page=abc')).status, 200)
+
+  // 이름은 선택 (앱에서 사진만 찍고 저장하는 경우)
+  const noName = await call('POST', '/items', { homeId: home.id, roomId: room.id })
+  assert.equal(noName.status, 201)
+  assert.equal(noName.data.name, '')
+})
+
+test('소유권: 남의 집·방·수납공간·카테고리·태그를 연결할 수 없다', async () => {
+  const { user } = setup()
+  const a = await user('A')
+  const b = await user('B')
+  const mine = await seed(a.call)
+  const theirs = await seed(b.call, 'B')
+  const base = { homeId: mine.home.id, roomId: mine.room.id, name: '여권' }
+
+  const cases = [
+    [{ ...base, homeId: theirs.home.id }, 'INVALID_HOME'],
+    [{ ...base, roomId: theirs.room.id }, 'ROOM_HOME_MISMATCH'],
+    [{ ...base, storageLocationId: theirs.s1.id }, 'STORAGE_ROOM_MISMATCH'],
+    [{ ...base, categoryId: theirs.category.id }, 'CATEGORY_NOT_FOUND'],
+    [{ ...base, tagIds: [mine.tag1.id, theirs.tag1.id] }, 'TAG_NOT_FOUND'],
+    [{ homeId: mine.home.id, storageLocationId: mine.s1.id }, 'STORAGE_WITHOUT_ROOM'],
+  ]
+  for (const [body, code] of cases) {
+    const res = await a.call('POST', '/items', body)
+    assert.equal(res.code, code, JSON.stringify(body))
+  }
+
+  const item = (await a.call('POST', '/items', base)).data
+  assert.equal((await a.call('PUT', `/items/${item.id}`, { ...base, homeId: theirs.home.id })).code, 'INVALID_HOME')
+  assert.equal((await a.call('PUT', `/items/${item.id}`, { ...base, tagIds: [theirs.tag2.id] })).code, 'TAG_NOT_FOUND')
+
+  // 남의 수납공간을 상위로 지정할 수 없다
+  const parent = await a.call('POST', `/rooms/${mine.room.id}/storage-locations`, { name: 'x', parentId: theirs.s1.id })
+  assert.equal(parent.code, 'STORAGE_PARENT_INVALID')
+
+  // 남의 데이터는 조회·수정·삭제 모두 404
+  assert.equal((await b.call('GET', `/items/${item.id}`)).status, 404)
+  assert.equal((await b.call('PUT', `/homes/${mine.home.id}`, { name: 'hack' })).status, 404)
+  assert.equal((await b.call('DELETE', `/rooms/${mine.room.id}`)).status, 404)
+  assert.equal((await b.call('DELETE', `/tags/${mine.tag1.id}`)).status, 404)
+  assert.equal((await b.call('GET', '/items')).data.totalElements, 0 + 0)
+})
+
+test('수납공간: 경로 계산과 순환 지정 차단', async () => {
+  const { user } = setup()
+  const { call } = await user()
+  const { s1, s2, s3 } = await seed(call)
+  assert.equal(s3.fullPath, '붙박이장 > 서랍 > 두 번째 칸')
+
+  assert.equal((await call('PUT', `/storage-locations/${s1.id}`, { name: '붙박이장', parentId: s1.id })).code, 'STORAGE_CYCLE')
+  assert.equal((await call('PUT', `/storage-locations/${s1.id}`, { name: '붙박이장', parentId: s3.id })).code, 'STORAGE_CYCLE')
+  assert.equal((await call('PUT', `/storage-locations/${s1.id}`, { name: '붙박이장', parentId: s2.id })).code, 'STORAGE_CYCLE')
+
+  const moved = await call('PUT', `/storage-locations/${s3.id}`, { name: '두 번째 칸', parentId: s1.id })
+  assert.equal(moved.data.fullPath, '붙박이장 > 두 번째 칸')
+  const renamed = await call('PUT', `/storage-locations/${s2.id}`, { name: '서랍장', parentId: s1.id })
+  assert.equal(renamed.data.fullPath, '붙박이장 > 서랍장')
+})
+
+test('물건 목록: 20개를 불러와도 쿼리 수가 D1 무료 한도(50) 보다 훨씬 적다', async () => {
+  const { user } = setup()
+  const { call } = await user()
+  const { home, room, s2, s3, category, tag1, tag2 } = await seed(call)
+  for (let i = 0; i < 25; i++) {
+    const item = (await call('POST', '/items', {
+      homeId: home.id, roomId: room.id, name: `물건${String(i).padStart(2, '0')}`,
+      storageLocationId: i % 2 ? s2.id : s3.id, categoryId: category.id, tagIds: [tag1.id, tag2.id],
+    })).data
+    if (i < 3) await call('POST', `/items/${item.id}/images`, undefined, { form: imageForm() })
+  }
+
+  const list = await call('GET', '/items?page=1&size=20')
+  assert.equal(list.status, 200)
+  assert.equal(list.data.totalElements, 25)
+  assert.equal(list.data.totalPages, 2)
+  assert.equal(list.data.content.length, 20)
+  assert.ok(list.queries <= 8, `쿼리 ${list.queries}회`)
+  for (const item of list.data.content) {
+    assert.ok(item.storageFullPath.startsWith('붙박이장 > '))
+    assert.deepEqual(item.tags.map((t) => t.name), ['여행', '중요'])
+    assert.equal(item.categoryName, '서류')
+    assert.equal(item.roomName, '안방')
+  }
+
+  // 페이지 크기를 최대(100)로 키워도 쿼리 수는 그대로
+  const big = await call('GET', '/items?size=100')
+  assert.equal(big.data.content.length, 25)
+  assert.ok(big.queries <= 8, `쿼리 ${big.queries}회`)
+  assert.equal(big.data.content.filter((i) => i.thumbnailUrl).length, 3)
+
+  const search = await call('GET', `/items/search?keyword=물건0&tag_id=${tag1.id}&sort=name`)
+  assert.deepEqual(search.data.content.map((i) => i.name), Array.from({ length: 10 }, (_, i) => `물건0${i}`))
+})
+
+test('유통기한 임박: 기준일 이전 만료 물건만, 만료일 순으로', async () => {
+  const { user } = setup()
+  const { call } = await user()
+  const { home, room } = await seed(call)
+  const add = (name, expirationDate) => call('POST', '/items', { homeId: home.id, roomId: room.id, name, expirationDate })
+  await add('우유', '2026-11-21')
+  await add('지난 약', '2026-11-01')
+  await add('통조림', '2027-06-01')
+  await add('기한 없음', null)
+  await add('오늘까지', '2026-11-19')
+
+  const soon = await call('GET', '/items/search?expires_before=2026-11-26&sort=expiration')
+  assert.deepEqual(soon.data.content.map((i) => i.name), ['지난 약', '오늘까지', '우유'])
+
+  const all = await call('GET', '/items/search?sort=expiration')
+  assert.deepEqual(all.data.content.map((i) => i.name), ['지난 약', '오늘까지', '우유', '통조림', '기한 없음'])
+
+  assert.equal((await call('GET', '/items/search?expires_before=2026-13-01')).status, 422)
+})
+
+test('물건 수정: 태그 교체와 이름 변경', async () => {
+  const { user } = setup()
+  const { call } = await user()
+  const { home, room, s3, tag1, tag2 } = await seed(call)
+  const base = { homeId: home.id, roomId: room.id, name: '여권' }
+  const created = await call('POST', '/items', { ...base, storageLocationId: s3.id, tagIds: [tag1.id, tag2.id, tag1.id] })
+  assert.equal(created.status, 201)
+  assert.equal(created.data.tags.length, 2)
+  assert.equal(created.data.storageFullPath, '붙박이장 > 서랍 > 두 번째 칸')
+
+  const updated = await call('PUT', `/items/${created.data.id}`, { ...base, name: '여권(갱신)', tagIds: [tag2.id] })
+  assert.equal(updated.data.name, '여권(갱신)')
+  assert.deepEqual(updated.data.tags.map((t) => t.name), ['여행'])
+  assert.equal(updated.data.storageLocationId, null)
+})
+
+test('카테고리·태그: 같은 이름은 409', async () => {
+  const { user } = setup()
+  const { call } = await user()
+  const first = await call('POST', '/categories', { name: '서류' })
+  assert.equal(first.status, 201)
+  assert.equal((await call('POST', '/categories', { name: '서류' })).code, 'DUPLICATE_NAME')
+  const other = (await call('POST', '/categories', { name: '공구' })).data
+  assert.equal((await call('PUT', `/categories/${other.id}`, { name: '서류' })).code, 'DUPLICATE_NAME')
+})
+
+test('사진: 이미지 형식만 받고, 삭제하면 R2 에서도 지운다', async () => {
+  const { user, IMAGES } = setup()
+  const { call } = await user()
+  const { home, room } = await seed(call)
+  const item = (await call('POST', '/items', { homeId: home.id, roomId: room.id, name: '여권' })).data
+  const upload = (form) => call('POST', `/items/${item.id}/images`, undefined, { form })
+
+  assert.equal((await upload(imageForm('a.txt', 'text/plain'))).code, 'INVALID_FILE')
+  assert.equal((await upload(imageForm('a.png', 'text/html'))).code, 'INVALID_FILE')
+  assert.equal((await upload(imageForm('noext', 'image/png'))).code, 'INVALID_FILE')
+
+  // MIME 없이 온 파일(multipart 에서 application/octet-stream)은 확장자로 판단한다
+  const ok = await upload(imageForm('photo.png', ''))
+  assert.equal(ok.status, 201)
+  const key = new URL(ok.data.imageUrl).pathname.slice(1)
+  assert.equal(IMAGES.objects.get(key).httpMetadata.contentType, 'image/png')
+
+  assert.equal((await call('DELETE', `/items/${item.id}/images/${ok.data.id}`)).status, 200)
+  assert.equal(IMAGES.objects.has(key), false)
+})
+
+test('삭제: 집을 지우면 그 집 사진만 R2 에서 지우고, 방 삭제는 사진을 남긴다', async () => {
+  const { user, IMAGES } = setup()
+  const { call } = await user()
+  const keyOf = (res) => new URL(res.data.imageUrl).pathname.slice(1)
+
+  const h1 = (await call('POST', '/homes', { name: '집1' })).data
+  const r1 = (await call('POST', `/homes/${h1.id}/rooms`, { name: '방' })).data
+  const i1 = (await call('POST', '/items', { homeId: h1.id, roomId: r1.id, name: 'a' })).data
+  const h2 = (await call('POST', '/homes', { name: '집2' })).data
+  const r2 = (await call('POST', `/homes/${h2.id}/rooms`, { name: '방' })).data
+  const i2 = (await call('POST', '/items', { homeId: h2.id, roomId: r2.id, name: 'b' })).data
+  const k1 = keyOf(await call('POST', `/items/${i1.id}/images`, undefined, { form: imageForm() }))
+  const k2 = keyOf(await call('POST', `/items/${i1.id}/images`, undefined, { form: imageForm() }))
+  const k3 = keyOf(await call('POST', `/items/${i2.id}/images`, undefined, { form: imageForm() }))
+
+  await call('DELETE', `/rooms/${r2.id}`)
+  const kept = await call('GET', `/items/${i2.id}`)
+  assert.equal(kept.data.roomId, null)
+  assert.equal(kept.data.images.length, 1)
+  assert.ok(IMAGES.objects.has(k3))
+
+  await call('DELETE', `/homes/${h1.id}`)
+  assert.equal(IMAGES.objects.has(k1), false)
+  assert.equal(IMAGES.objects.has(k2), false)
+  assert.ok(IMAGES.objects.has(k3))
+  assert.equal((await call('GET', `/items/${i1.id}`)).status, 404)
+})
+
+test('회원 탈퇴: 내 데이터와 사진만 모두 지우고 카카오 연결을 끊는다', async () => {
+  const { user, DB, IMAGES } = setup({ KAKAO_ADMIN_KEY: 'admin-key' })
+  const a = await user('A')
+  const b = await user('B')
+  DB.raw.prepare("INSERT INTO auth_identities(user_id,provider,provider_user_id) VALUES(?,'kakao','555')").run(a.id)
+  const mine = await seed(a.call)
+  const theirs = await seed(b.call, 'B')
+  const myItem = (await a.call('POST', '/items', { homeId: mine.home.id, roomId: mine.room.id, tagIds: [mine.tag1.id] })).data
+  const theirItem = (await b.call('POST', '/items', { homeId: theirs.home.id, roomId: theirs.room.id })).data
+  await a.call('POST', `/items/${myItem.id}/images`, undefined, { form: imageForm() })
+  await b.call('POST', `/items/${theirItem.id}/images`, undefined, { form: imageForm() })
+  IMAGES.objects.set(`items/${a.id}/999/orphan.png`, { bytes: new Uint8Array(), httpMetadata: {} }) // DB 에 없는 고아 파일
+
+  const unlinked = []
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    unlinked.push({ url: String(url), auth: init.headers.Authorization, body: String(init.body) })
+    return new Response('{}')
+  }
+  try {
+    const res = await a.call('DELETE', '/users/me')
+    assert.equal(res.status, 200)
+  } finally { globalThis.fetch = originalFetch }
+
+  assert.equal((await a.call('GET', '/users/me')).status, 401)
+  const count = (sql) => DB.raw.prepare(sql).get(a.id).n
+  for (const table of ['homes', 'items', 'categories', 'tags', 'auth_identities']) {
+    assert.equal(count(`SELECT count(*) n FROM ${table} WHERE user_id=?`), 0, table)
+  }
+  assert.equal(DB.raw.prepare('SELECT count(*) n FROM rooms r LEFT JOIN homes h ON h.id=r.home_id WHERE h.id IS NULL').get().n, 0)
+  assert.equal(DB.raw.prepare('SELECT count(*) n FROM item_images ii LEFT JOIN items i ON i.id=ii.item_id WHERE i.id IS NULL').get().n, 0)
+  assert.equal([...IMAGES.objects.keys()].filter((k) => k.startsWith(`items/${a.id}/`)).length, 0)
+  assert.equal([...IMAGES.objects.keys()].filter((k) => k.startsWith(`items/${b.id}/`)).length, 1)
+  assert.equal((await b.call('GET', `/items/${theirItem.id}`)).status, 200)
+
+  assert.equal(unlinked.length, 1)
+  assert.equal(unlinked[0].url, 'https://kapi.kakao.com/v1/user/unlink')
+  assert.equal(unlinked[0].auth, 'KakaoAK admin-key')
+  assert.match(unlinked[0].body, /target_id=555/)
+})

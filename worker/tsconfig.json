@@ -7,7 +7,11 @@
     "types": ["@cloudflare/workers-types"],
     "strict": true,
     "noEmit": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    // 테스트는 node --experimental-strip-types 로 소스를 직접 실행한다.
+    // 그래서 상대 import 에 .ts 확장자를 붙이고, 타입 전용 import 는 import type 으로 쓴다.
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true
   },
   "include": ["src/**/*.ts"]
 }
