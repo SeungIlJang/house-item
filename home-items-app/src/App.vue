@@ -2,7 +2,8 @@
 import { onMounted, onUnmounted } from 'vue'
 import { IonApp, IonRouterOutlet, useBackButton, useIonRouter, toastController } from '@ionic/vue'
 import { App } from '@capacitor/app'
-import type { PluginListenerHandle } from '@capacitor/core'
+import { Capacitor, type PluginListenerHandle } from '@capacitor/core'
+import { LocalNotifications } from '@capacitor/local-notifications'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { consumeCallbackUrl, isAuthCallbackUrl, readCallbackUrl } from '@/services/socialAuth'
@@ -46,7 +47,16 @@ async function handleDeepLink(url: string) {
   }
 }
 
+// 유통기한 알림을 누르면 그 물건 상세로 이동한다.
+let notificationListener: PluginListenerHandle | null = null
+
 onMounted(async () => {
+  if (Capacitor.isNativePlatform()) {
+    notificationListener = await LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => {
+      const itemId = Number(notification.extra?.itemId)
+      if (itemId && auth.isAuthenticated) router.push(`/items/${itemId}`)
+    })
+  }
   urlListener = await App.addListener('appUrlOpen', ({ url }) => void handleDeepLink(url))
   // 앱이 종료된 상태에서 딥링크로 켜지면 리스너를 걸기 전에 이벤트가 지나간다.
   const launch = await App.getLaunchUrl()
@@ -56,6 +66,8 @@ onMounted(async () => {
 onUnmounted(() => {
   void urlListener?.remove()
   urlListener = null
+  void notificationListener?.remove()
+  notificationListener = null
 })
 </script>
 

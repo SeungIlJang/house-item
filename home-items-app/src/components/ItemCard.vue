@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { IonCard, IonCardContent, IonChip, IonLabel, IonThumbnail } from '@ionic/vue'
 import { imageUrl } from '@/api'
+import { computed } from 'vue'
 import type { Item } from '@/types/api'
+import { daysUntil, expiryLabel, expiryTone } from '@/utils/expiry'
 
-defineProps<{ item: Item }>()
+const props = defineProps<{ item: Item }>()
+// 30일 안에 만료되거나 이미 지난 물건만 표시한다.
+const expiryDays = computed(() => (props.item.expirationDate ? daysUntil(props.item.expirationDate) : null))
 </script>
 
 <template>
@@ -20,6 +24,13 @@ defineProps<{ item: Item }>()
             <ion-label>{{ item.categoryName }}</ion-label>
           </ion-chip>
           <span class="qty">수량 {{ item.quantity }}</span>
+          <ion-chip
+            v-if="expiryDays !== null && expiryDays <= 30"
+            :color="expiryTone(expiryDays)"
+            class="mini-chip"
+          >
+            <ion-label>⏰ {{ expiryLabel(expiryDays) }}</ion-label>
+          </ion-chip>
         </div>
         <div v-if="item.storageFullPath" class="path">📍 {{ item.storageFullPath }}</div>
         <div v-else-if="item.roomName" class="path">📍 {{ item.roomName }}</div>

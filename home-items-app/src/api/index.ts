@@ -26,6 +26,10 @@ export const authApi = {
   async me(): Promise<User> {
     return unwrap<User>(await client.get('/users/me'))
   },
+  /** 회원 탈퇴. 서버에서 모든 데이터와 사진이 지워지며 되돌릴 수 없다. */
+  async deleteAccount(): Promise<void> {
+    await client.delete('/users/me')
+  },
 }
 
 // ----- 집 -----
@@ -127,7 +131,9 @@ export interface ItemSearchParams {
   storageLocationId?: number
   categoryId?: number
   tagId?: number
-  sort?: string
+  /** 'YYYY-MM-DD'. 이 날짜(포함) 이전에 만료되는 물건만. 현지 날짜로 계산해 보낸다. */
+  expiresBefore?: string
+  sort?: 'recent' | 'name' | 'expiration' | string
   page?: number
   size?: number
 }
@@ -143,6 +149,7 @@ export const itemApi = {
     if (params.storageLocationId) query.storage_location_id = params.storageLocationId
     if (params.categoryId) query.category_id = params.categoryId
     if (params.tagId) query.tag_id = params.tagId
+    if (params.expiresBefore) query.expires_before = params.expiresBefore
     if (params.sort) query.sort = params.sort
     query.page = params.page ?? 1
     query.size = params.size ?? 20

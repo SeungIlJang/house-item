@@ -11,13 +11,43 @@ import {
   IonLabel,
   IonIcon,
   IonButton,
+  IonToggle,
+  IonSelect,
+  IonSelectOption,
+  IonListHeader,
+  alertController,
+  loadingController,
   onIonViewWillEnter,
 } from '@ionic/vue'
-import { pricetagsOutline, gridOutline, logOutOutline } from 'ionicons/icons'
+import { ref } from 'vue'
+import { pricetagsOutline, gridOutline, logOutOutline, notificationsOutline, timeOutline } from 'ionicons/icons'
+import {
+  REMINDER_HOUR,
+  getReminderSettings,
+  remindersSupported,
+  saveReminderSettings,
+  syncExpiryReminders,
+} from '@/services/expiryReminder'
 import { useAuthStore } from '@/stores/auth'
+import { authApi } from '@/api'
+import { extractErrorMessage } from '@/api/client'
+import { useToast } from '@/composables/useToast'
 
 const router = useRouter()
 const auth = useAuthStore()
+const toast = useToast()
+
+const CONFIRM_WORD = '탈퇴'
+
+// 유통기한 알림 설정 (기기 로컬 알림이라 앱에서만 보인다)
+const showReminders = remindersSupported()
+const reminder = ref(getReminderSettings())
+
+function updateReminder(patch: Partial<typeof reminder.value>) {
+  reminder.value = { ...reminder.value, ...patch }
+  saveReminderSettings(reminder.value)
+  void syncExpiryReminders()
+}
 
 onIonViewWillEnter(() => {
   auth.fetchMe()
@@ -26,6 +56,46 @@ onIonViewWillEnter(() => {
 function logout() {
   auth.logout()
   router.replace('/login')
+}
+
+async function deleteAccount() {
+  const loading = await loadingController.create({ message: '탈퇴 처리 중...' })
+  await loading.present()
+  try {
+    await authApi.deleteAccount()
+    auth.logout()
+    await router.replace('/login')
+    toast.success('탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.')
+  } catch (e) {
+    toast.error(extractErrorMessage(e, '탈퇴에 실패했습니다. 잠시 후 다시 시도해주세요.'))
+  } finally {
+    await loading.dismiss()
+  }
+}
+
+// 되돌릴 수 없는 작업이라 확인 단어를 직접 입력하게 한다.
+async function confirmDeleteAccount() {
+  const alert = await alertController.create({
+    header: '회원 탈퇴',
+    message: `등록한 집·보관장소·물건·사진이 모두 삭제되며 되돌릴 수 없습니다. 계속하려면 '${CONFIRM_WORD}'를 입력하세요.`,
+    inputs: [{ name: 'confirm', placeholder: CONFIRM_WORD }],
+    buttons: [
+      { text: '취소', role: 'cancel' },
+      {
+        text: '탈퇴하기',
+        role: 'destructive',
+        handler: (data) => {
+          if (data.confirm?.trim() !== CONFIRM_WORD) {
+            toast.error(`'${CONFIRM_WORD}'를 정확히 입력해주세요.`)
+            return false
+          }
+          deleteAccount()
+          return true
+        },
+      },
+    ],
+  })
+  await alert.present()
 }
 </script>
 
@@ -54,10 +124,43 @@ function logout() {
         </ion-item>
       </ion-list>
 
+      <ion-list v-if="showReminders">
+        <ion-list-header>
+          <ion-label>유통기한 알림</ion-label>
+        </ion-list-header>
+        <ion-item>
+          <ion-icon slot="start" :icon="notificationsOutline" />
+          <ion-toggle
+            :checked="reminder.enabled"
+            @ion-change="updateReminder({ enabled: $event.detail.checked })"
+          >
+            알림 받기
+          </ion-toggle>
+        </ion-item>
+        <ion-item :disabled="!reminder.enabled">
+          <ion-icon slot="start" :icon="timeOutline" />
+          <ion-select
+            label="알림 시점"
+            interface="popover"
+            :value="reminder.daysBefore"
+            @ion-change="updateReminder({ daysBefore: Number($event.detail.value) })"
+          >
+            <ion-select-option :value="1">1일 전</ion-select-option>
+            <ion-select-option :value="3">3일 전</ion-select-option>
+            <ion-select-option :value="7">7일 전</ion-select-option>
+            <ion-select-option :value="14">14일 전</ion-select-option>
+          </ion-select>
+        </ion-item>
+        <p class="hint ion-padding-horizontal">만료 {{ reminder.daysBefore }}일 전 오전 {{ REMINDER_HOUR }}시에 알려 드려요.</p>
+      </ion-list>
+
       <div class="ion-padding">
         <ion-button expand="block" fill="outline" color="danger" @click="logout">
           <ion-icon slot="start" :icon="logOutOutline" />
           로그아웃
+        </ion-button>
+        <ion-button class="delete-account" expand="block" fill="clear" color="medium" size="small" @click="confirmDeleteAccount">
+          회원 탈퇴
         </ion-button>
       </div>
     </ion-content>
@@ -82,5 +185,13 @@ function logout() {
 }
 .email {
   color: var(--ion-color-medium);
+}
+.hint {
+  color: var(--ion-color-medium);
+  font-size: 13px;
+  margin: 4px 0 8px;
+}
+.delete-account {
+  margin-top: 24px;
 }
 </style>

@@ -28,6 +28,8 @@ import { trashOutline, chevronDownOutline, cameraOutline, imagesOutline } from '
 import { Capacitor } from '@capacitor/core'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { homeApi, roomApi, storageApi, categoryApi, tagApi, itemApi, imageUrl } from '@/api'
+import { compressImage } from '@/services/imageCompress'
+import { syncExpiryReminders } from '@/services/expiryReminder'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type {
@@ -380,9 +382,10 @@ async function save() {
         const blob = await (await fetch(p.fetchUrl)).blob()
         file = new File([blob], `photo_${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' })
       }
-      if (file) await itemApi.uploadImage(saved.id, file)
+      if (file) await itemApi.uploadImage(saved.id, await compressImage(file))
     }
 
+    void syncExpiryReminders()
     toast.success(isEdit.value ? '수정되었습니다.' : '등록되었습니다.')
     if (isEdit.value) {
       router.back()

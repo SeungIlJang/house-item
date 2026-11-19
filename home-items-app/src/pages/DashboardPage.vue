@@ -24,6 +24,11 @@ import ItemCard from '@/components/ItemCard.vue'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type { Item } from '@/types/api'
+import { syncExpiryReminders } from '@/services/expiryReminder'
+import { addDays, toLocalDateString } from '@/utils/expiry'
+
+// 홈에 보여 줄 유통기한 임박 기준(오늘부터 7일 안, 이미 지난 것 포함)
+const EXPIRING_DAYS = 7
 
 const router = useRouter()
 const toast = useToast()
@@ -31,13 +36,22 @@ const toast = useToast()
 const loading = ref(true)
 const totalItems = ref(0)
 const recentItems = ref<Item[]>([])
+const expiringItems = ref<Item[]>([])
+const expiringTotal = ref(0)
 
 async function load() {
   loading.value = true
   try {
-    const page = await itemApi.list(1, 5)
+    const expiresBefore = toLocalDateString(addDays(new Date(), EXPIRING_DAYS))
+    const [page, expiring] = await Promise.all([
+      itemApi.list(1, 5),
+      itemApi.search({ expiresBefore, sort: 'expiration', size: 5 }),
+    ])
     totalItems.value = page.totalElements
     recentItems.value = page.content
+    expiringItems.value = expiring.content
+    expiringTotal.value = expiring.totalElements
+    void syncExpiryReminders()
   } catch (e) {
     toast.error(extractErrorMessage(e))
   } finally {
@@ -96,6 +110,16 @@ onIonViewWillEnter(load)
           </ion-row>
         </ion-grid>
 
+        <template v-if="expiringItems.length">
+          <div class="ion-padding-horizontal section-head">
+            <h2 class="section-title">⏰ 유통기한 임박</h2>
+            <span class="section-sub">7일 이내 · {{ expiringTotal }}개</span>
+          </div>
+          <div class="ion-padding-horizontal">
+            <ItemCard v-for="item in expiringItems" :key="item.id" :item="item" />
+          </div>
+        </template>
+
         <div class="ion-padding-horizontal">
           <h2 class="section-title">최근 등록한 물건</h2>
         </div>
@@ -140,6 +164,15 @@ onIonViewWillEnter(load)
   font-size: 17px;
   font-weight: 600;
   margin: 8px 0;
+}
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.section-sub {
+  color: var(--ion-color-medium);
+  font-size: 13px;
 }
 .empty {
   text-align: center;

@@ -28,6 +28,8 @@ import 'swiper/css/zoom'
 import { itemApi, imageUrl } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
+import { syncExpiryReminders } from '@/services/expiryReminder'
+import { daysUntil, expiryLabel, expiryTone } from '@/utils/expiry'
 import type { Item } from '@/types/api'
 
 const route = useRoute()
@@ -69,6 +71,7 @@ async function confirmDelete() {
         handler: async () => {
           try {
             await itemApi.remove(Number(route.params.id))
+            void syncExpiryReminders()
             toast.success('삭제되었습니다.')
             router.back()
           } catch (e) {
@@ -165,6 +168,9 @@ onIonViewWillEnter(load)
               <p>유효기간</p>
               <h3>{{ item.expirationDate }}</h3>
             </ion-label>
+            <ion-chip slot="end" :color="expiryTone(daysUntil(item.expirationDate))">
+              <ion-label>{{ expiryLabel(daysUntil(item.expirationDate)) }}</ion-label>
+            </ion-chip>
           </ion-item>
         </ion-list>
       </template>

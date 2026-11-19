@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import { authApi } from '@/api'
 import { clearToken, getToken, setToken } from '@/api/client'
 import { signInWith, type SocialProvider } from '@/services/socialAuth'
+import { cancelExpiryReminders } from '@/services/expiryReminder'
 import type { User } from '@/types/api'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -33,6 +34,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout(): void {
+    // 다른 계정으로 로그인했을 때 이전 사용자의 물건 알림이 울리지 않도록 지운다.
+    void cancelExpiryReminders().catch(() => {})
     clearToken()
     user.value = null
     isAuthenticated.value = false
