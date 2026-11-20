@@ -2,6 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { setup, imageForm } from './helpers/env.mjs'
+import { LIMITS } from '../src/lib/limits.ts'
 
 /** 집 → 방 → 수납공간(3단계) → 카테고리 → 태그 2개를 만든다. */
 async function seed(call, prefix = '') {
@@ -350,12 +351,13 @@ test('가입: 새 사용자에게 기본 집과 보관장소를 만들어 준다
   } finally { globalThis.fetch = originalFetch }
 })
 
-test('사진: 물건당 10장까지만 올릴 수 있다', async () => {
+test('사진: 물건당 5장까지만 올릴 수 있다', async () => {
+  assert.equal(LIMITS.imagesPerItem, 5)
   const { user } = setup()
   const { call } = await user()
   const { home, room } = await seed(call)
   const item = (await call('POST', '/items', { homeId: home.id, roomId: room.id, name: '앨범' })).data
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < LIMITS.imagesPerItem; i++) {
     assert.equal((await call('POST', `/items/${item.id}/images`, undefined, { form: imageForm() })).status, 201)
   }
   const over = await call('POST', `/items/${item.id}/images`, undefined, { form: imageForm() })

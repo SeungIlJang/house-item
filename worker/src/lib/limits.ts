@@ -3,7 +3,7 @@
 // 수치는 여기서만 바꾸면 된다. 이용약관(home-items-app/src/legal/documents.ts)의 안내 문구도 함께 고친다.
 export const LIMITS = {
   /** 물건 한 개에 붙일 수 있는 사진 수 */
-  imagesPerItem: 10,
+  imagesPerItem: 5,
   /** 사용자 한 명이 보관할 수 있는 사진 총수 */
   imagesPerUser: 1000,
   /** 사용자 한 명이 24시간 동안 올릴 수 있는 사진 수 (자동화된 대량 업로드 차단) */
