@@ -124,7 +124,7 @@ GET/POST/PUT/DELETE  /tags[/{id}]                  태그
 GET/POST/PUT/DELETE  /items[/{id}]                 물건
 GET    /items/search   keyword, home_id, room_id, storage_location_id, category_id, tag_id,
                        expires_before(YYYY-MM-DD, 이 날짜 이전 만료), sort(recent|name|expiration), page, size
-POST   /items/{id}/images              사진 업로드 (multipart, jpg/png/webp/gif/heic, 10MB 이하)
+POST   /items/{id}/images              사진 업로드 (multipart, jpg/png/webp/gif/heic, 10MB 이하, 물건당 5장)
 DELETE /items/{id}/images/{imageId}
 ```
 
@@ -148,6 +148,44 @@ DELETE /items/{id}/images/{imageId}
 서버 없이 기기의 로컬 알림(`@capacitor/local-notifications`)으로 동작합니다. 앱에서만 울리고 웹(PWA)에서는 홈 화면의
 "유통기한 임박" 목록만 보입니다. 홈 진입·물건 저장·삭제 때 앞으로 60일 안에 만료되는 물건으로 알림을 다시 예약하며
 (가까운 50개까지), 기본값은 만료 3일 전 오전 9시입니다. 플러그인을 추가했으므로 안드로이드 빌드 전에 `npx cap sync android` 가 필요합니다.
+
+## OTA 업데이트 (안드로이드 앱)
+
+스토어 심사 없이 앱 화면(웹 코드)을 원격으로 업데이트합니다. Capgo 클라우드 없이 자체 호스팅하므로 무료입니다.
+
+- **배포**: `cd home-items-app && npm run deploy:web` 한 번이면 웹 버전과 OTA 묶음이 함께 올라갑니다.
+  앱은 켜지거나 다시 앞으로 올 때 `/ota/manifest.json` 을 확인해 새 묶음을 받고, **다음 실행부터** 적용합니다.
+- **안전장치**: 새 묶음이 정상적으로 뜨지 않으면 이전 묶음으로 자동으로 되돌립니다. 지금 실행 중인 것보다 새 묶음만 받습니다.
+- **OTA 로 바꿀 수 있는 것**: 화면, 문구, 로직 등 웹 코드.
+- **스토어 업데이트가 필요한 것**: 네이티브 플러그인 추가·변경, 권한, 아이콘, 앱 이름, Capacitor 버전.
+  이런 변경을 넣을 때는 `home-items-app/ota.config.json` 의 `minNativeBuild` 를 새 앱의 versionCode 로 올려,
+  옛 앱이 맞지 않는 묶음을 받지 않게 합니다.
+- **출시용 광고 ID**: OTA 묶음도 출시용 빌드입니다. `home-items-app/.env.production` 에
+  `VITE_ADMOB_BANNER_ID=...` 를 넣어 두지 않으면 묶음을 받은 앱에 테스트 광고가 나옵니다(배포 시 경고가 뜹니다).
+- 관련 파일: `src/services/ota.ts`, `scripts/build-ota.mjs`, `capacitor.config.ts`(CapacitorUpdater), `public/_headers`.
+
+## 광고 (안드로이드 앱)
+
+하단 배너 광고(Google AdMob, `@capacitor-community/admob`)가 로그인 후 화면에 표시됩니다.
+등록·수정·약관 화면과 웹 버전에는 나오지 않습니다. 코드는 `home-items-app/src/services/ads.ts` 한 곳에 있습니다.
+
+빌드 전에 두 가지 ID 가 필요합니다(AdMob 콘솔에서 발급).
+
+1. **AdMob 앱 ID** (`ca-app-pub-숫자~숫자`): `android/app/src/main/AndroidManifest.xml` 의 `<application>` 안에 넣습니다.
+   **없으면 앱이 시작하자마자 종료됩니다.**
+   ```xml
+   <meta-data
+       android:name="com.google.android.gms.ads.APPLICATION_ID"
+       android:value="ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy" />
+   ```
+2. **배너 광고 단위 ID** (`ca-app-pub-숫자/숫자`): 출시용 빌드에 환경 변수로 넣습니다.
+   ```bash
+   VITE_ADMOB_BANNER_ID=ca-app-pub-xxxxxxxxxxxxxxxx/zzzzzzzzzz npm run build && npx cap sync android
+   ```
+   지정하지 않으면 구글 테스트 광고가 나옵니다. 개발·테스트 중에는 지정하지 마세요
+   (내 앱의 실제 광고를 직접 누르면 AdMob 정책 위반입니다).
+
+광고 SDK 가 `AD_ID` 권한을 자동으로 추가하므로, Play Console 의 광고 ID 선언과 광고 포함 여부는 "예"로 둡니다.
 
 ## 알려진 제한사항
 

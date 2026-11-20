@@ -28,12 +28,12 @@ export default [
     rules: { 'no-undef': 'off' },
   },
   {
-    // node --test 로 실행하는 테스트 파일
-    files: ['tests/**/*.mjs'],
+    // Node 로 실행하는 파일: 테스트(node --test)와 빌드 스크립트
+    files: ['tests/**/*.mjs', 'scripts/**/*.mjs'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
-      globals: { ...browserGlobals, Buffer: 'readonly', globalThis: 'readonly', URL: 'readonly' },
+      globals: { ...browserGlobals, Buffer: 'readonly', globalThis: 'readonly', URL: 'readonly', process: 'readonly' },
     },
   },
   {

@@ -32,6 +32,7 @@ import { compressImage } from '@/services/imageCompress'
 import { syncExpiryReminders } from '@/services/expiryReminder'
 import { takePickedRoom } from '@/services/placePicker'
 import { getLastPlace, saveLastPlace } from '@/services/lastPlace'
+import { MAX_PHOTOS_PER_ITEM } from '@/config/limits'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type {
@@ -167,15 +168,29 @@ function isUserCancel(e: unknown): boolean {
   return /cancel/i.test(msg)
 }
 
+// 사진은 물건당 MAX_PHOTOS_PER_ITEM 장까지. 이미 저장된 사진과 새로 고른 사진을 합쳐서 센다.
+const photoCount = computed(() => images.value.length + pendingPhotos.value.length)
+const photosFull = computed(() => photoCount.value >= MAX_PHOTOS_PER_ITEM)
+const photoLimitMessage = `사진은 물건당 ${MAX_PHOTOS_PER_ITEM}장까지 올릴 수 있어요.`
+
+/** 한도 안에서만 사진을 추가한다. 넘치면 false 를 돌려준다. */
+function addPendingPhoto(photo: PendingPhoto): boolean {
+  if (photosFull.value) return false
+  pendingPhotos.value.push(photo)
+  return true
+}
+
 // 웹(브라우저)용 파일 입력
 const fileInput = ref<HTMLInputElement | null>(null)
 
 function onFilesSelected(ev: Event) {
   const input = ev.target as HTMLInputElement
   if (input.files) {
+    let skipped = false
     for (const file of Array.from(input.files)) {
-      pendingPhotos.value.push({ previewUrl: URL.createObjectURL(file), file })
+      if (!addPendingPhoto({ previewUrl: URL.createObjectURL(file), file })) skipped = true
     }
+    if (skipped) toast.info(photoLimitMessage)
   }
   input.value = ''
 }
@@ -194,6 +209,10 @@ const cameraInput = ref<HTMLInputElement | null>(null)
 
 /** 사진 촬영. 앱은 카메라 플러그인, 웹은 카메라 입력을 쓴다. */
 function takePhoto() {
+  if (photosFull.value) {
+    toast.info(photoLimitMessage)
+    return
+  }
   if (isNative) return addFromCamera()
   // 브라우저가 사용자 동작 없이 여는 것을 막으면 조용히 넘어간다(버튼을 직접 누르면 열린다).
   cameraInput.value?.click()
@@ -210,7 +229,7 @@ async function addFromCamera() {
     })
     if (photo.base64String) {
       const file = base64ToFile(photo.base64String, photo.format)
-      pendingPhotos.value.push({ previewUrl: URL.createObjectURL(file), file })
+      addPendingPhoto({ previewUrl: URL.createObjectURL(file), file })
     }
   } catch (e) {
     if (!isUserCancel(e)) toast.error('사진을 가져오지 못했습니다.')
@@ -229,13 +248,18 @@ function preloadImage(url: string): Promise<void> {
 
 // 갤러리 → 여러 장 선택. 완료 후 썸네일 준비되는 동안 로딩 표시.
 async function openGallery() {
+  if (photosFull.value) {
+    toast.info(photoLimitMessage)
+    return
+  }
   if (!isNative) {
     fileInput.value?.click()
     return
   }
   let result
   try {
-    result = await Camera.pickImages({ quality: 90 })
+    // 남은 장수까지만 고를 수 있게 한다.
+    result = await Camera.pickImages({ quality: 90, limit: MAX_PHOTOS_PER_ITEM - photoCount.value })
   } catch (e) {
     if (!isUserCancel(e)) toast.error('갤러리를 열지 못했습니다.')
     return
@@ -246,10 +270,13 @@ async function openGallery() {
   await paintNow() // 로딩바를 먼저 그린 뒤 사진 로드 시작
   try {
     // 준비되면 한꺼번에 추가 → 썸네일이 즉시 표시됨
-    await Promise.all(result.photos.map((photo) => preloadImage(photo.webPath)))
-    for (const photo of result.photos) {
-      pendingPhotos.value.push({ previewUrl: photo.webPath, file: null, fetchUrl: photo.webPath })
+    // 기기에 따라 limit 을 지키지 않는 갤러리가 있어 여기서도 한도를 확인한다.
+    const picked = result.photos.slice(0, MAX_PHOTOS_PER_ITEM - photoCount.value)
+    await Promise.all(picked.map((photo) => preloadImage(photo.webPath)))
+    for (const photo of picked) {
+      addPendingPhoto({ previewUrl: photo.webPath, file: null, fetchUrl: photo.webPath })
     }
+    if (picked.length < result.photos.length) toast.info(photoLimitMessage)
   } finally {
     photoLoading.value = false
   }
@@ -503,7 +530,7 @@ onIonViewWillEnter(load)
       <div v-if="loading" class="center"><ion-spinner /></div>
       <template v-else>
         <div v-if="homes.length > 0" class="ion-padding-horizontal photo-first">
-          <ion-label class="section">사진</ion-label>
+          <ion-label class="section">사진 <span class="photo-count">{{ photoCount }}/{{ MAX_PHOTOS_PER_ITEM }}</span></ion-label>
           <p v-if="!isEdit" class="photo-hint">사진만 찍어도 등록할 수 있어요. 이름은 나중에 적어도 됩니다.</p>
 
           <div v-if="images.length || pendingPhotos.length" class="images">
@@ -520,11 +547,11 @@ onIonViewWillEnter(load)
           </div>
 
           <div class="photo-actions">
-            <ion-button fill="solid" size="default" @click="takePhoto">
+            <ion-button fill="solid" size="default" :disabled="photosFull" @click="takePhoto">
               <ion-icon slot="start" :icon="cameraOutline" />
               사진 촬영
             </ion-button>
-            <ion-button fill="outline" size="default" @click="openGallery">
+            <ion-button fill="outline" size="default" :disabled="photosFull" @click="openGallery">
               <ion-icon slot="start" :icon="imagesOutline" />
               갤러리
             </ion-button>
@@ -683,6 +710,12 @@ onIonViewWillEnter(load)
 <style scoped>
 .photo-first {
   padding-top: 12px;
+}
+.photo-count {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ion-color-medium);
 }
 .photo-hint {
   margin: 4px 0 8px;

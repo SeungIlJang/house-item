@@ -1,10 +1,21 @@
+import { readFileSync } from 'node:fs'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// 웹 묶음의 버전과 빌드 시각. OTA 가 "지금 실행 중인 묶음보다 새 것인지" 비교하는 데 쓴다.
+// OTA 배포(scripts/build-ota.mjs)는 값을 환경 변수로 넘기고, 일반 빌드는 여기서 만든다.
+const pkgVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
+const builtAt = Number(process.env.APP_BUILT_AT) || Date.now()
+const buildId = process.env.APP_BUILD_ID || `${pkgVersion}-${new Date(builtAt).toISOString().replace(/[-:T]/g, '').slice(0, 14)}`
+
 // https://vitejs.dev/config/
 export default defineConfig({
+  define: {
+    __APP_BUILD__: JSON.stringify(buildId),
+    __APP_BUILT_AT__: String(builtAt),
+  },
   plugins: [
     vue(),
     VitePWA({

@@ -1,17 +1,26 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { IonApp, IonRouterOutlet, useBackButton, useIonRouter, toastController } from '@ionic/vue'
 import { App } from '@capacitor/app'
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { consumeCallbackUrl, isAuthCallbackUrl, readCallbackUrl } from '@/services/socialAuth'
+import { setBannerVisible, shouldShowAds } from '@/services/ads'
 
 const ionRouter = useIonRouter()
 const router = useRouter()
 const auth = useAuthStore()
+const route = useRoute()
 let lastBackPress = 0
+
+// 하단 배너 광고: 로그인한 뒤, 등록·수정·약관 화면이 아닐 때만 보인다(안드로이드 앱 전용).
+watch(
+  () => [route.path, auth.isAuthenticated] as const,
+  ([path, loggedIn]) => void setBannerVisible(shouldShowAds(path, loggedIn)),
+  { immediate: true },
+)
 
 // 하드웨어 뒤로가기: 화면 이동은 Ionic 이 처리하고,
 // 더 뒤로 갈 곳이 없는 루트에서는 "한 번 더 누르면 종료".

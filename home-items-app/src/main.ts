@@ -4,6 +4,7 @@ import { IonicVue } from '@ionic/vue'
 
 import App from './App.vue'
 import router from './router'
+import { startOta } from './services/ota'
 
 /* Ionic 필수 CSS */
 import '@ionic/vue/css/core.css'
@@ -21,4 +22,6 @@ const app = createApp(App).use(IonicVue).use(createPinia()).use(router)
 
 router.isReady().then(() => {
   app.mount('#app')
+  // 화면이 뜬 뒤에 정상 실행을 알리고 OTA 업데이트를 확인한다(안드로이드 앱 전용).
+  void startOta()
 })
