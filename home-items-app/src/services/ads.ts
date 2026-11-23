@@ -8,6 +8,7 @@
 //   (내 앱의 실제 광고를 직접 누르면 AdMob 정책 위반이므로 개발 중에는 반드시 테스트 광고를 쓴다)
 // - AdMob 앱 ID: android/app/src/main/AndroidManifest.xml 의
 //   com.google.android.gms.ads.APPLICATION_ID 메타데이터. 없으면 앱이 시작하자마자 종료된다(README 참고).
+import { ref } from 'vue'
 import { Capacitor } from '@capacitor/core'
 import {
   AdMob,
@@ -29,7 +30,18 @@ const GAP_PX = 6
 const HIDDEN_PATHS = [/^\/login$/, /^\/auth\//, /^\/terms$/, /^\/privacy$/, /^\/account-deletion$/, /^\/tabs\/add$/, /^\/items\/\d+\/edit$/]
 
 export const adsSupported = () => Capacitor.getPlatform() === 'android'
-export const shouldShowAds = (path: string, loggedIn: boolean) => loggedIn && !HIDDEN_PATHS.some((p) => p.test(path))
+
+/**
+ * 광고를 보여 줄지. inGrace 는 신규 사용자 유예 중인지(utils/adGrace.ts)로, 유예 중이면 어느 화면에서도 보여 주지 않는다.
+ */
+export const shouldShowAds = (path: string, loggedIn: boolean, inGrace: boolean) =>
+  loggedIn && !inGrace && !HIDDEN_PATHS.some((p) => p.test(path))
+
+// 사용자가 등록한 물건 수(신규 사용자 유예 판정용). 홈 화면이 목록을 불러올 때마다 알려 준다. 모르면 null.
+export const adItemCount = ref<number | null>(null)
+export function reportItemCount(count: number | null): void {
+  adItemCount.value = count
+}
 
 let ready: Promise<boolean> | null = null
 let created = false

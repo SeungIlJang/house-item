@@ -167,7 +167,8 @@ DELETE /items/{id}/images/{imageId}
 ## 광고 (안드로이드 앱)
 
 하단 배너 광고(Google AdMob, `@capacitor-community/admob`)가 로그인 후 화면에 표시됩니다.
-등록·수정·약관 화면과 웹 버전에는 나오지 않습니다. 코드는 `home-items-app/src/services/ads.ts` 한 곳에 있습니다.
+등록·수정·약관 화면과 웹 버전에는 나오지 않습니다.
+신규 사용자(가입 3일 미만이면서 등록한 물건 10개 미만)에게도 보여 주지 않습니다(`src/utils/adGrace.ts`). 코드는 `home-items-app/src/services/ads.ts` 한 곳에 있습니다.
 
 빌드 전에 두 가지 ID 가 필요합니다(AdMob 콘솔에서 발급).
 

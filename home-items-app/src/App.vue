@@ -7,7 +7,9 @@ import { LocalNotifications } from '@capacitor/local-notifications'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { consumeCallbackUrl, isAuthCallbackUrl, readCallbackUrl } from '@/services/socialAuth'
-import { setBannerVisible, shouldShowAds } from '@/services/ads'
+import { adItemCount, adsSupported, reportItemCount, setBannerVisible, shouldShowAds } from '@/services/ads'
+import { inAdGracePeriod } from '@/utils/adGrace'
+import { itemApi } from '@/api'
 
 const ionRouter = useIonRouter()
 const router = useRouter()
@@ -15,10 +17,27 @@ const auth = useAuthStore()
 const route = useRoute()
 let lastBackPress = 0
 
-// 하단 배너 광고: 로그인한 뒤, 등록·수정·약관 화면이 아닐 때만 보인다(안드로이드 앱 전용).
+// 하단 배너 광고(안드로이드 앱 전용): 로그인한 뒤, 등록·수정·약관 화면이 아닐 때만 보인다.
+// 신규 사용자(가입 3일 미만이면서 물건 10개 미만)에게는 보여 주지 않는다.
 watch(
-  () => [route.path, auth.isAuthenticated] as const,
-  ([path, loggedIn]) => void setBannerVisible(shouldShowAds(path, loggedIn)),
+  () => [route.path, auth.isAuthenticated, auth.user?.createdAt, adItemCount.value] as const,
+  ([path, loggedIn, createdAt, itemCount]) =>
+    void setBannerVisible(shouldShowAds(path, loggedIn, inAdGracePeriod(createdAt, itemCount))),
+  { immediate: true },
+)
+
+// 유예 판정에 필요한 가입일과 물건 수를 로그인 직후 한 번 불러온다. 실패하면 유예 상태(광고 숨김)로 남는다.
+watch(
+  () => auth.isAuthenticated,
+  (loggedIn) => {
+    if (!loggedIn) {
+      reportItemCount(null)
+      return
+    }
+    if (!adsSupported()) return
+    if (!auth.user) void auth.fetchMe().catch(() => {})
+    void itemApi.list(1, 1).then((page) => reportItemCount(page.totalElements)).catch(() => {})
+  },
   { immediate: true },
 )
 
