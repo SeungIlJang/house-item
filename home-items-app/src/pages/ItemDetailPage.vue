@@ -32,6 +32,7 @@ import { itemApi, imageUrl } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import { syncExpiryReminders } from '@/services/expiryReminder'
+import { refreshItemCount } from '@/services/itemCount'
 import { daysUntil, expiryLabel, expiryTone } from '@/utils/expiry'
 import type { Item } from '@/types/api'
 
@@ -97,6 +98,7 @@ async function confirmDelete() {
           try {
             await itemApi.remove(Number(route.params.id))
             void syncExpiryReminders()
+            void refreshItemCount()
             toast.success('삭제되었습니다.')
             goBack()
           } catch (e) {

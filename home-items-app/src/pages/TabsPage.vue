@@ -5,10 +5,16 @@ import {
   IonTabButton,
   IonIcon,
   IonLabel,
+  IonBadge,
   IonRouterOutlet,
   IonPage,
 } from '@ionic/vue'
-import { home, search, addCircle, fileTrayFull, person } from 'ionicons/icons'
+import { computed } from 'vue'
+import { home, search, addCircle, cube, person } from 'ionicons/icons'
+import { formatBadge, itemCount } from '@/services/itemCount'
+
+// 보관함 탭에 내가 등록한 물건 수를 붙인다. 등록하면 숫자가 늘어 "저기에 담겼다"는 것이 보인다.
+const boxBadge = computed(() => formatBadge(itemCount.value))
 </script>
 
 <template>
@@ -29,8 +35,9 @@ import { home, search, addCircle, fileTrayFull, person } from 'ionicons/icons'
           <ion-label>등록</ion-label>
         </ion-tab-button>
         <ion-tab-button tab="box" href="/tabs/box">
-          <ion-icon :icon="fileTrayFull" />
+          <ion-icon :icon="cube" />
           <ion-label>보관함</ion-label>
+          <ion-badge v-if="boxBadge" color="primary" class="count-badge">{{ boxBadge }}</ion-badge>
         </ion-tab-button>
         <ion-tab-button tab="profile" href="/tabs/profile">
           <ion-icon :icon="person" />

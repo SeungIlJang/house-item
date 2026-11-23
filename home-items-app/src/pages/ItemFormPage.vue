@@ -30,6 +30,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { homeApi, roomApi, storageApi, categoryApi, tagApi, itemApi, imageUrl } from '@/api'
 import { compressImage } from '@/services/imageCompress'
 import { syncExpiryReminders } from '@/services/expiryReminder'
+import { refreshItemCount } from '@/services/itemCount'
 import { takePickedRoom } from '@/services/placePicker'
 import { getLastPlace, saveLastPlace } from '@/services/lastPlace'
 import { MAX_PHOTOS_PER_ITEM } from '@/config/limits'
@@ -541,6 +542,7 @@ async function save(then: 'view' | 'continue' = 'view') {
     }
 
     void syncExpiryReminders()
+    if (!isEdit.value) void refreshItemCount() // 하단 탭의 물건 수를 바로 맞춘다
     if (!isEdit.value && form.value.homeId && form.value.roomId) {
       saveLastPlace({ homeId: form.value.homeId, roomId: form.value.roomId, storageLocationId: form.value.storageLocationId })
     }

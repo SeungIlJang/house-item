@@ -25,7 +25,7 @@ import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type { Item } from '@/types/api'
 import { syncExpiryReminders } from '@/services/expiryReminder'
-import { reportItemCount } from '@/services/ads'
+import { reportItemCount } from '@/services/itemCount'
 import { addDays, toLocalDateString } from '@/utils/expiry'
 
 // 홈에 보여 줄 유통기한 임박 기준(오늘부터 7일 안, 이미 지난 것 포함)
@@ -49,7 +49,7 @@ async function load() {
       itemApi.search({ expiresBefore, sort: 'expiration', size: 5 }),
     ])
     totalItems.value = page.totalElements
-    reportItemCount(page.totalElements) // 신규 사용자 광고 유예 판정에 쓴다
+    reportItemCount(page.totalElements) // 하단 탭 숫자와 광고 유예 판정에 쓴다
     recentItems.value = page.content
     expiringItems.value = expiring.content
     expiringTotal.value = expiring.totalElements
