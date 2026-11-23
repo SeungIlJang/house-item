@@ -30,7 +30,7 @@ const routes: RouteRecordRaw[] = [
   // 보관 장소 관리(집 → 보관장소 → 수납공간). 내 정보 메뉴에서 들어온다.
   { path: '/places', component: () => import('@/pages/HomesPage.vue') },
   { path: '/homes/:homeId/rooms', component: () => import('@/pages/RoomsPage.vue') },
-  // 보관함에서 보관장소를 눌렀을 때: 그 보관장소의 물건 전체
+  // 내 물건에서 보관장소를 눌렀을 때: 그 보관장소의 물건 전체
   { path: '/rooms/:roomId/items', component: () => import('@/pages/RoomItemsPage.vue') },
   { path: '/rooms/:roomId/storage', component: () => import('@/pages/StoragePage.vue') },
   { path: '/categories', component: () => import('@/pages/CategoriesPage.vue') },

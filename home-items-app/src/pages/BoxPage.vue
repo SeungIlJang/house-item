@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 보관함: 저장한 물건을 보관장소(방)별로 모아 보여 준다. "이 방에 뭐가 있지?"에 답하는 화면.
+// 내 물건: 저장한 물건을 보관장소(방)별로 모아 보여 준다. "이 방에 뭐가 있지?"에 답하는 화면.
 // 보관장소 자체를 만들고 고치는 화면은 [내 정보 → 보관 장소 관리]에 있다.
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -94,7 +94,7 @@ onIonViewWillEnter(load)
   <ion-page>
     <ion-header>
       <ion-toolbar>
-        <ion-title>보관함</ion-title>
+        <ion-title>내 물건</ion-title>
         <ion-buttons v-if="homes.length > 1" slot="end">
           <ion-button @click="changeHome">
             {{ homeName }}

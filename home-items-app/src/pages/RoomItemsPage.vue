@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 한 보관장소(방)에 있는 물건 전체. 보관함에서 보관장소를 누르면 온다.
+// 한 보관장소(방)에 있는 물건 전체. 내 물건에서 보관장소를 누르면 온다.
 // 수납공간 칩으로 "붙박이장 > 서랍" 같은 하위 위치만 골라 볼 수 있다.
 import { ref } from 'vue'
 import { useRoute } from 'vue-router'
@@ -122,7 +122,7 @@ onIonViewWillEnter(async () => {
             <ion-icon slot="icon-only" :icon="arrowBackOutline" />
           </ion-button>
         </ion-buttons>
-        <ion-title>{{ roomName || '보관함' }}</ion-title>
+        <ion-title>{{ roomName || '내 물건' }}</ion-title>
       </ion-toolbar>
     </ion-header>
     <ion-content>
