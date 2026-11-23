@@ -7,6 +7,7 @@ import {
   IonToolbar,
   IonTitle,
   IonButtons,
+  IonBackButton,
   IonButton,
   IonContent,
   IonList,
@@ -119,7 +120,10 @@ onIonViewWillEnter(load)
   <ion-page>
     <ion-header>
       <ion-toolbar>
-        <ion-title>보관 장소</ion-title>
+        <ion-buttons slot="start">
+          <ion-back-button default-href="/tabs/profile" />
+        </ion-buttons>
+        <ion-title>보관 장소 관리</ion-title>
         <ion-buttons slot="end">
           <ion-button @click="promptCreate">
             <ion-icon slot="icon-only" :icon="addOutline" />

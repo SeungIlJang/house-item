@@ -28,9 +28,9 @@ import { home, search, addCircle, fileTrayFull, person } from 'ionicons/icons'
           <ion-icon :icon="addCircle" />
           <ion-label>등록</ion-label>
         </ion-tab-button>
-        <ion-tab-button tab="places" href="/tabs/places">
+        <ion-tab-button tab="box" href="/tabs/box">
           <ion-icon :icon="fileTrayFull" />
-          <ion-label>보관 장소</ion-label>
+          <ion-label>보관함</ion-label>
         </ion-tab-button>
         <ion-tab-button tab="profile" href="/tabs/profile">
           <ion-icon :icon="person" />

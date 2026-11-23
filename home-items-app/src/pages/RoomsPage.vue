@@ -141,7 +141,7 @@ onIonViewWillEnter(async () => {
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-back-button default-href="/tabs/places" />
+          <ion-back-button default-href="/places" />
         </ion-buttons>
         <ion-title>보관장소 관리</ion-title>
         <ion-buttons slot="end">

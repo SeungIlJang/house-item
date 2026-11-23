@@ -13,6 +13,26 @@
   margin-top: 8px;
 }
 
+/* 보관장소 선택 창: [＋ 추가] 버튼을 창 오른쪽 위(제목 줄)에 둔다 (pages/ItemFormPage.vue openRoomPicker) */
+.room-picker .alert-wrapper {
+  position: relative;
+}
+.room-picker .alert-head {
+  padding-inline-end: 96px; /* 제목이 버튼과 겹치지 않게 */
+}
+/* 버튼이 3개면 Ionic 이 세로로 쌓으므로, [취소] [확인]은 원래처럼 오른쪽에 한 줄로 둔다 */
+.room-picker .alert-button-group {
+  flex-direction: row;
+  justify-content: flex-end;
+}
+.room-picker .room-picker-add {
+  position: absolute;
+  top: 12px;
+  inset-inline-end: 8px;
+  margin: 0;
+  font-weight: 700;
+}
+
 /* 팝업 메시지 줄바꿈 유지 (composables/useAlert.ts) */
 .alert-pre-line .alert-message {
   white-space: pre-line;

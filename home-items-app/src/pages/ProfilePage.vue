@@ -20,7 +20,7 @@ import {
   onIonViewWillEnter,
 } from '@ionic/vue'
 import { ref } from 'vue'
-import { pricetagsOutline, gridOutline, logOutOutline, notificationsOutline, timeOutline, documentTextOutline, shieldCheckmarkOutline } from 'ionicons/icons'
+import { pricetagsOutline, gridOutline, logOutOutline, notificationsOutline, timeOutline, documentTextOutline, shieldCheckmarkOutline, homeOutline } from 'ionicons/icons'
 import {
   REMINDER_HOUR,
   getReminderSettings,
@@ -116,6 +116,13 @@ async function confirmDeleteAccount() {
       </div>
 
       <ion-list>
+        <ion-item button detail @click="router.push('/places')">
+          <ion-icon slot="start" :icon="homeOutline" />
+          <ion-label>
+            보관 장소 관리
+            <p>집 · 보관장소 · 수납공간 추가와 수정</p>
+          </ion-label>
+        </ion-item>
         <ion-item button @click="router.push('/categories')">
           <ion-icon slot="start" :icon="gridOutline" />
           <ion-label>카테고리 관리</ion-label>

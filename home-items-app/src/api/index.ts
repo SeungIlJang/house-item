@@ -53,6 +53,9 @@ export const roomApi = {
   async listByHome(homeId: number): Promise<Room[]> {
     return unwrap<Room[]>(await client.get(`/homes/${homeId}/rooms`))
   },
+  async get(id: number): Promise<Room> {
+    return unwrap<Room>(await client.get(`/rooms/${id}`))
+  },
   async create(homeId: number, name: string, description?: string, sortOrder = 0): Promise<Room> {
     return unwrap<Room>(
       await client.post(`/homes/${homeId}/rooms`, { name, description, sortOrder }),

@@ -155,6 +155,72 @@ function goCreateRoom() {
   router.push({ path: `/homes/${form.value.homeId}/rooms`, query: { create: '1', returnTo: 'item' } })
 }
 
+const selectedRoomName = computed(() => rooms.value.find((r) => r.id === form.value.roomId)?.name ?? '')
+
+async function selectRoom(roomId: number) {
+  if (roomId === form.value.roomId) return
+  form.value.roomId = roomId
+  await onRoomChange()
+}
+
+// 보관장소 선택 창. 기본 선택 상자(ion-select)에는 버튼을 넣을 수 없어 같은 모양의 창을 직접 띄우고,
+// 오른쪽 위에 [＋ 추가] 버튼을 둔다(위치는 theme/variables.css 의 .room-picker).
+async function openRoomPicker() {
+  const alert = await alertController.create({
+    header: '보관장소 *',
+    cssClass: 'room-picker',
+    inputs: rooms.value.map((r) => ({
+      type: 'radio' as const,
+      label: r.name,
+      value: r.id,
+      checked: r.id === form.value.roomId,
+    })),
+    buttons: [
+      { text: '＋ 추가', cssClass: 'room-picker-add', handler: () => void promptCreateRoom() },
+      { text: '취소', role: 'cancel' },
+      { text: '확인', handler: (value: number | undefined) => { if (value) void selectRoom(value) } },
+    ],
+  })
+  await alert.present()
+}
+
+// 선택 창에서 바로 보관장소를 추가한다. 화면을 옮기지 않으므로 작성 중인 내용이 그대로 남고, 새 장소가 바로 선택된다.
+async function promptCreateRoom() {
+  if (!form.value.homeId) return
+  const homeId = form.value.homeId
+  const alert = await alertController.create({
+    header: '보관장소 추가',
+    inputs: [{ name: 'name', placeholder: '보관장소 이름 (예: 거실)', attributes: { maxlength: 100 } }],
+    buttons: [
+      { text: '취소', role: 'cancel' },
+      {
+        text: '추가',
+        handler: (data) => {
+          const name = data.name?.trim()
+          if (!name) {
+            toast.error('보관장소 이름을 입력해 주세요.')
+            return false // 창을 닫지 않는다
+          }
+          void createRoom(homeId, name)
+          return true
+        },
+      },
+    ],
+  })
+  await alert.present()
+}
+
+async function createRoom(homeId: number, name: string) {
+  try {
+    const room = await roomApi.create(homeId, name)
+    await loadRooms(homeId)
+    await selectRoom(room.id)
+    toast.success(`'${room.name}' 보관장소를 추가했어요.`)
+  } catch (e) {
+    toast.error(extractErrorMessage(e, '보관장소를 추가하지 못했습니다.'))
+  }
+}
+
 async function onRoomChange() {
   form.value.storageLocationId = null
   await loadStorages(form.value.roomId)
@@ -577,7 +643,7 @@ onIonViewWillEnter(load)
 
         <div v-if="homes.length === 0" class="empty">
           <p>먼저 집을 등록해야 물건을 추가할 수 있어요.</p>
-          <ion-button @click="router.push('/tabs/places')">보관 장소로 이동</ion-button>
+          <ion-button @click="router.push('/places')">보관 장소로 이동</ion-button>
         </div>
 
         <ion-list v-else>
@@ -589,18 +655,12 @@ onIonViewWillEnter(load)
               <p class="create-room-link">눌러서 보관장소 등록하기</p>
             </ion-label>
           </ion-item>
-          <ion-item v-else>
-            <ion-select
-              label="보관장소 *"
-              label-placement="stacked"
-              v-model="form.roomId"
-              placeholder="보관장소를 선택하세요"
-              @ion-change="onRoomChange"
-            >
-              <ion-select-option v-for="r in rooms" :key="r.id" :value="r.id">
-                {{ r.name }}
-              </ion-select-option>
-            </ion-select>
+          <ion-item v-else button detail @click="openRoomPicker">
+            <ion-label>
+              <p>보관장소 *</p>
+              <h3 v-if="selectedRoomName">{{ selectedRoomName }}</h3>
+              <h3 v-else class="room-placeholder">보관장소를 선택하세요</h3>
+            </ion-label>
           </ion-item>
           <ion-item>
             <ion-input
@@ -720,6 +780,9 @@ onIonViewWillEnter(load)
 .photo-hint {
   margin: 4px 0 8px;
   font-size: 13px;
+  color: var(--ion-color-medium);
+}
+.room-placeholder {
   color: var(--ion-color-medium);
 }
 .create-room-link {

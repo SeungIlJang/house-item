@@ -138,7 +138,7 @@ onIonViewWillEnter(load)
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-back-button default-href="/tabs/places" />
+          <ion-back-button default-href="/places" />
         </ion-buttons>
         <ion-title>수납공간</ion-title>
         <ion-buttons slot="end">
