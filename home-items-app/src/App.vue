@@ -10,6 +10,7 @@ import { consumeCallbackUrl, isAuthCallbackUrl, readCallbackUrl } from '@/servic
 import { adsSupported, setBannerVisible, shouldShowAds } from '@/services/ads'
 import { itemCount, refreshItemCount, reportItemCount } from '@/services/itemCount'
 import { inAdGracePeriod } from '@/utils/adGrace'
+import { otaState } from '@/services/ota'
 
 const ionRouter = useIonRouter()
 const router = useRouter()
@@ -102,5 +103,64 @@ onUnmounted(() => {
 <template>
   <ion-app>
     <ion-router-outlet />
+    <!-- 앱을 켤 때 새 버전을 받는 동안 보여 주는 화면 (services/ota.ts) -->
+    <div v-if="otaState.active" class="ota-overlay" role="status" aria-live="polite">
+      <img class="ota-icon" src="/pwa-192x192.png" alt="" />
+      <p class="ota-title">업데이트 중</p>
+      <p class="ota-sub">새 버전을 받고 있어요. 잠시만 기다려 주세요.</p>
+      <div class="ota-bar"><div class="ota-bar-fill" :style="{ width: otaState.percent + '%' }" /></div>
+      <p class="ota-percent">{{ otaState.percent }}%</p>
+    </div>
   </ion-app>
 </template>
+
+<style>
+.ota-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000; /* Ionic 의 팝업·토스트보다 위 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  background: var(--ion-background-color, #fff);
+  text-align: center;
+}
+.ota-icon {
+  width: 84px;
+  height: 84px;
+  border-radius: 20px;
+  margin-bottom: 8px;
+}
+.ota-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+.ota-sub {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ion-color-medium);
+}
+.ota-bar {
+  width: min(240px, 70vw);
+  height: 6px;
+  margin-top: 14px;
+  border-radius: 3px;
+  background: var(--ion-color-light);
+  overflow: hidden;
+}
+.ota-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ion-color-primary);
+  transition: width 0.2s ease;
+}
+.ota-percent {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ion-color-medium);
+}
+</style>
