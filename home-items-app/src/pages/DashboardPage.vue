@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   IonPage,
@@ -16,6 +16,9 @@ import {
   IonButton,
   IonIcon,
   IonSpinner,
+  IonSegment,
+  IonSegmentButton,
+  IonLabel,
   onIonViewWillEnter,
 } from '@ionic/vue'
 import { cameraOutline } from 'ionicons/icons'
@@ -40,6 +43,20 @@ const recentItems = ref<Item[]>([])
 const expiringItems = ref<Item[]>([])
 const expiringTotal = ref(0)
 
+// 목록 탭: 최근 등록한 물건 / 다가온 유통기한.
+// 유통기한이 다가온 물건이 있으면 그 탭을 첫 번째에 두고 먼저 보여 준다. 없으면 최근 등록이 첫 번째다.
+type ListTab = 'expiry' | 'recent'
+const TAB_LABEL: Record<ListTab, string> = { expiry: '다가온 유통기한', recent: '최근 등록한 물건' }
+const tabOrder = computed<ListTab[]>(() => (expiringTotal.value > 0 ? ['expiry', 'recent'] : ['recent', 'expiry']))
+const activeTab = ref<ListTab>('recent')
+// 사용자가 직접 탭을 고른 뒤에는 화면에 다시 들어와도 그 탭을 유지한다.
+let tabPicked = false
+function pickTab(value: unknown) {
+  if (value !== 'expiry' && value !== 'recent') return
+  activeTab.value = value
+  tabPicked = true
+}
+
 async function load() {
   loading.value = true
   try {
@@ -53,6 +70,7 @@ async function load() {
     recentItems.value = page.content
     expiringItems.value = expiring.content
     expiringTotal.value = expiring.totalElements
+    if (!tabPicked) activeTab.value = tabOrder.value[0]
     void syncExpiryReminders()
   } catch (e) {
     toast.error(extractErrorMessage(e))
@@ -112,28 +130,40 @@ onIonViewWillEnter(load)
           </ion-row>
         </ion-grid>
 
-        <template v-if="expiringItems.length">
-          <div class="ion-padding-horizontal section-head">
-            <h2 class="section-title">⏰ 유통기한 임박</h2>
-            <span class="section-sub">7일 이내 · {{ expiringTotal }}개</span>
+        <div class="ion-padding-horizontal list-tabs">
+          <ion-segment :value="activeTab" @ion-change="pickTab($event.detail.value)">
+            <ion-segment-button v-for="tab in tabOrder" :key="tab" :value="tab">
+              <ion-label>
+                {{ TAB_LABEL[tab] }}
+                <span v-if="tab === 'expiry' && expiringTotal > 0" class="tab-count">{{ expiringTotal }}</span>
+              </ion-label>
+            </ion-segment-button>
+          </ion-segment>
+        </div>
+
+        <!-- 다가온 유통기한: 오늘부터 7일 안에 만료되거나 이미 지난 물건, 가까운 순 -->
+        <template v-if="activeTab === 'expiry'">
+          <div v-if="expiringItems.length === 0" class="empty">
+            <p>7일 안에 유통기한이 다가오는 물건이 없어요.</p>
           </div>
-          <div class="ion-padding-horizontal">
-            <ItemCard v-for="item in expiringItems" :key="item.id" :item="item" />
-          </div>
+          <template v-else>
+            <p class="ion-padding-horizontal section-sub">7일 이내 · {{ expiringTotal }}개 (지난 것 포함)</p>
+            <div class="ion-padding-horizontal">
+              <ItemCard v-for="item in expiringItems" :key="item.id" :item="item" />
+            </div>
+          </template>
         </template>
 
-        <div class="ion-padding-horizontal">
-          <h2 class="section-title">최근 등록한 물건</h2>
-        </div>
-
-        <div v-if="recentItems.length === 0" class="empty">
-          <p>아직 등록한 물건이 없어요.</p>
-          <ion-button @click="router.push('/tabs/add')">첫 물건 등록하기</ion-button>
-        </div>
-
-        <div v-else class="ion-padding-horizontal">
-          <ItemCard v-for="item in recentItems" :key="item.id" :item="item" />
-        </div>
+        <!-- 최근 등록한 물건 -->
+        <template v-else>
+          <div v-if="recentItems.length === 0" class="empty">
+            <p>아직 등록한 물건이 없어요.</p>
+            <ion-button @click="router.push('/tabs/add')">첫 물건 등록하기</ion-button>
+          </div>
+          <div v-else class="ion-padding-horizontal">
+            <ItemCard v-for="item in recentItems" :key="item.id" :item="item" />
+          </div>
+        </template>
       </template>
     </ion-content>
   </ion-page>
@@ -162,17 +192,23 @@ onIonViewWillEnter(load)
   align-items: center;
   gap: 4px;
 }
-.section-title {
-  font-size: 17px;
-  font-weight: 600;
-  margin: 8px 0;
+.list-tabs {
+  margin: 4px 0 8px;
 }
-.section-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+.tab-count {
+  display: inline-block;
+  min-width: 18px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--ion-color-danger);
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
 }
 .section-sub {
+  margin: 0 0 6px;
   color: var(--ion-color-medium);
   font-size: 13px;
 }

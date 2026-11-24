@@ -33,6 +33,33 @@
   font-weight: 700;
 }
 
+/* 날짜 선택 창: 화면 가운데에 달력 크기만큼만 뜬다 (pages/ItemFormPage.vue) */
+.date-modal {
+  --width: min(360px, 92vw);
+  --height: auto;
+  --border-radius: 14px;
+}
+.date-modal .date-sheet {
+  padding: 8px 8px 6px;
+}
+.date-modal .date-title {
+  margin: 10px 12px 4px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.date-modal ion-datetime {
+  width: 100%;
+  max-width: none;
+}
+.date-modal .date-actions {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+}
+.date-modal .date-spacer {
+  flex: 1;
+}
+
 /* 팝업 메시지 줄바꿈 유지 (composables/useAlert.ts) */
 .alert-pre-line .alert-message {
   white-space: pre-line;

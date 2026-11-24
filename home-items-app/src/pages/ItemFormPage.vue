@@ -21,6 +21,8 @@ import {
   IonIcon,
   IonAccordion,
   IonAccordionGroup,
+  IonModal,
+  IonDatetime,
   alertController,
   onIonViewWillEnter,
 } from '@ionic/vue'
@@ -34,6 +36,7 @@ import { refreshItemCount } from '@/services/itemCount'
 import { takePickedRoom } from '@/services/placePicker'
 import { getLastPlace, saveLastPlace } from '@/services/lastPlace'
 import { MAX_PHOTOS_PER_ITEM } from '@/config/limits'
+import { toLocalDateString } from '@/utils/expiry'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type {
@@ -94,6 +97,32 @@ const form = ref({
   categoryId: null as number | null,
   tagIds: [] as number[],
 })
+
+// 날짜 칸(유효기간·구매일). 누르면 달력 창을 띄운다.
+type DateKey = 'expirationDate' | 'purchaseDate'
+const DATE_FIELDS: { key: DateKey; label: string }[] = [
+  { key: 'expirationDate', label: '유효기간' },
+  { key: 'purchaseDate', label: '구매일' },
+]
+// 달력 창에서 고르는 중인 값. [입력]을 눌러야 form 에 들어가므로 [취소]하면 아무것도 바뀌지 않는다.
+const datePicker = ref<{ key: DateKey; value: string } | null>(null)
+const datePickerLabel = computed(() => DATE_FIELDS.find((f) => f.key === datePicker.value?.key)?.label ?? '')
+
+function openDatePicker(key: DateKey) {
+  // 이미 넣은 날짜가 있으면 그 날짜, 없으면 오늘 날짜를 미리 선택해 둔다.
+  datePicker.value = { key, value: form.value[key] || toLocalDateString(new Date()) }
+}
+function onDatePicked(value: string | string[] | null | undefined) {
+  if (datePicker.value && typeof value === 'string') datePicker.value.value = value.slice(0, 10)
+}
+function confirmDate() {
+  if (datePicker.value) form.value[datePicker.value.key] = datePicker.value.value
+  datePicker.value = null
+}
+function clearDate() {
+  if (datePicker.value) form.value[datePicker.value.key] = ''
+  datePicker.value = null
+}
 
 function flattenTree(nodes: StorageTreeNode[], depth = 0): { id: number; label: string }[] {
   const out: { id: number; label: string }[] = []
@@ -672,17 +701,13 @@ onIonViewWillEnter(load)
               placeholder="예: 휴대전화 충전기 (선택)"
             />
           </ion-item>
-          <ion-item>
-            <ion-input
-              label="수량"
-              label-placement="stacked"
-              type="number"
-              min="0"
-              v-model.number="form.quantity"
-            />
-          </ion-item>
-          <ion-item>
-            <ion-textarea label="설명" label-placement="stacked" v-model="form.description" :auto-grow="true" />
+          <!-- 날짜 칸: 누르면 달력 창이 뜬다. [입력]을 눌러야 날짜가 들어가고 [취소]하면 바뀌지 않는다. -->
+          <ion-item v-for="field in DATE_FIELDS" :key="field.key" button detail @click="openDatePicker(field.key)">
+            <ion-label>
+              <p>{{ field.label }}</p>
+              <h3 v-if="form[field.key]">{{ form[field.key] }}</h3>
+              <h3 v-else class="room-placeholder">눌러서 날짜 입력</h3>
+            </ion-label>
           </ion-item>
         </ion-list>
 
@@ -694,6 +719,18 @@ onIonViewWillEnter(load)
             </ion-item>
             <div slot="content">
               <ion-list>
+                <ion-item>
+                  <ion-input
+                    label="수량"
+                    label-placement="stacked"
+                    type="number"
+                    min="0"
+                    v-model.number="form.quantity"
+                  />
+                </ion-item>
+                <ion-item>
+                  <ion-textarea label="설명" label-placement="stacked" v-model="form.description" :auto-grow="true" />
+                </ion-item>
                 <ion-item v-if="storages.length">
                   <ion-select
                     label="수납 위치"
@@ -733,22 +770,6 @@ onIonViewWillEnter(load)
                     </ion-select-option>
                   </ion-select>
                 </ion-item>
-                <ion-item>
-                  <ion-input
-                    label="구매일"
-                    label-placement="stacked"
-                    type="date"
-                    v-model="form.purchaseDate"
-                  />
-                </ion-item>
-                <ion-item>
-                  <ion-input
-                    label="유효기간"
-                    label-placement="stacked"
-                    type="date"
-                    v-model="form.expirationDate"
-                  />
-                </ion-item>
               </ion-list>
             </div>
           </ion-accordion>
@@ -766,6 +787,25 @@ onIonViewWillEnter(load)
         </div>
       </template>
     </ion-content>
+
+    <!-- 날짜 선택 창 -->
+    <ion-modal :is-open="datePicker !== null" class="date-modal" @did-dismiss="datePicker = null">
+      <div v-if="datePicker" class="date-sheet">
+        <h3 class="date-title">{{ datePickerLabel }}</h3>
+        <ion-datetime
+          presentation="date"
+          locale="ko-KR"
+          :value="datePicker.value"
+          @ion-change="onDatePicked($event.detail.value)"
+        />
+        <div class="date-actions">
+          <ion-button v-if="form[datePicker.key]" fill="clear" color="medium" @click="clearDate">지우기</ion-button>
+          <span class="date-spacer" />
+          <ion-button fill="clear" @click="datePicker = null">취소</ion-button>
+          <ion-button @click="confirmDate">입력</ion-button>
+        </div>
+      </div>
+    </ion-modal>
   </ion-page>
 </template>
 
