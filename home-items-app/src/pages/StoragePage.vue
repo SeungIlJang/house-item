@@ -22,7 +22,7 @@ import {
   onIonViewWillEnter,
 } from '@ionic/vue'
 import { addOutline, addCircleOutline } from 'ionicons/icons'
-import { storageApi } from '@/api'
+import { roomApi, storageApi } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type { StorageTreeNode } from '@/types/api'
@@ -50,10 +50,15 @@ function flatten(tree: StorageTreeNode[], depth = 0): FlatNode[] {
   return out
 }
 
+// 화면 제목으로 쓸 보관장소 이름. 불러오기 전에는 '수납공간'으로 보인다.
+const roomName = ref('')
+
 async function load() {
   loading.value = true
   try {
-    nodes.value = flatten(await storageApi.tree(roomId))
+    const [room, tree] = await Promise.all([roomApi.get(roomId), storageApi.tree(roomId)])
+    roomName.value = room.name
+    nodes.value = flatten(tree)
   } catch (e) {
     toast.error(extractErrorMessage(e))
   } finally {
@@ -140,7 +145,7 @@ onIonViewWillEnter(load)
         <ion-buttons slot="start">
           <ion-back-button default-href="/places" />
         </ion-buttons>
-        <ion-title>수납공간</ion-title>
+        <ion-title>{{ roomName || '수납공간' }}</ion-title>
         <ion-buttons slot="end">
           <ion-button @click="promptCreate(null, '수납공간 등록')">
             <ion-icon slot="icon-only" :icon="addOutline" />

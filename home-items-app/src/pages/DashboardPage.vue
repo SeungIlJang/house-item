@@ -43,10 +43,10 @@ const recentItems = ref<Item[]>([])
 const expiringItems = ref<Item[]>([])
 const expiringTotal = ref(0)
 
-// 목록 탭: 최근 등록한 물건 / 다가온 유통기한.
-// 유통기한이 다가온 물건이 있으면 그 탭을 첫 번째에 두고 먼저 보여 준다. 없으면 최근 등록이 첫 번째다.
+// 목록 탭: 최근 등록한 물건 / 유통기한 임박.
+// 유통기한이 임박한 물건이 있으면 그 탭을 첫 번째에 두고 먼저 보여 준다. 없으면 최근 등록이 첫 번째다.
 type ListTab = 'expiry' | 'recent'
-const TAB_LABEL: Record<ListTab, string> = { expiry: '다가온 유통기한', recent: '최근 등록한 물건' }
+const TAB_LABEL: Record<ListTab, string> = { expiry: '유통기한 임박', recent: '최근 등록한 물건' }
 const tabOrder = computed<ListTab[]>(() => (expiringTotal.value > 0 ? ['expiry', 'recent'] : ['recent', 'expiry']))
 const activeTab = ref<ListTab>('recent')
 // 사용자가 직접 탭을 고른 뒤에는 화면에 다시 들어와도 그 탭을 유지한다.
@@ -141,10 +141,10 @@ onIonViewWillEnter(load)
           </ion-segment>
         </div>
 
-        <!-- 다가온 유통기한: 오늘부터 7일 안에 만료되거나 이미 지난 물건, 가까운 순 -->
+        <!-- 유통기한 임박: 오늘부터 7일 안에 만료되거나 이미 지난 물건, 가까운 순 -->
         <template v-if="activeTab === 'expiry'">
           <div v-if="expiringItems.length === 0" class="empty">
-            <p>7일 안에 유통기한이 다가오는 물건이 없어요.</p>
+            <p>7일 안에 유통기한이 임박한 물건이 없어요.</p>
           </div>
           <template v-else>
             <p class="ion-padding-horizontal section-sub">7일 이내 · {{ expiringTotal }}개 (지난 것 포함)</p>

@@ -67,6 +67,10 @@ export const roomApi = {
   async remove(id: number): Promise<void> {
     await client.delete(`/rooms/${id}`)
   },
+  /** 보관장소를 다른 보관장소 안의 수납공간으로 옮긴다. 물건과 수납공간이 함께 따라간다. */
+  async moveInto(id: number, targetRoomId: number): Promise<StorageLocation> {
+    return unwrap<StorageLocation>(await client.post(`/rooms/${id}/move-into`, { targetRoomId }))
+  },
 }
 
 // ----- 수납공간 -----
