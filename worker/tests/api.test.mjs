@@ -419,3 +419,71 @@ test('사용량 제한: 사용자별 사진 총량, 하루 업로드 수, 물건
   assert.equal(overItems.code, 'ITEM_QUOTA')
   assert.equal((await a.call('PUT', `/items/${target.id}`, { homeId: mine.home.id, roomId: mine.room.id, name: '수정은 가능' })).status, 200)
 })
+
+test('보관장소 옮기기: 다른 보관장소 안의 수납공간이 되고 물건과 수납공간이 따라간다', async () => {
+  const { user, DB, IMAGES } = setup()
+  const a = await user('A')
+  const b = await user('B')
+  const home = (await a.call('POST', '/homes', { name: '우리집' })).data
+  const kitchen = (await a.call('POST', `/homes/${home.id}/rooms`, { name: '주방' })).data
+  const fridge = (await a.call('POST', `/homes/${home.id}/rooms`, { name: '냉장고' })).data
+  const otherRoom = (await a.call('POST', `/homes/${home.id}/rooms`, { name: '안방' })).data
+  const sink = (await a.call('POST', `/rooms/${kitchen.id}/storage-locations`, { name: '싱크대' })).data
+  const door = (await a.call('POST', `/rooms/${fridge.id}/storage-locations`, { name: '문 칸' })).data
+  const eggTray = (await a.call('POST', `/rooms/${fridge.id}/storage-locations`, { name: '계란 칸', parentId: door.id })).data
+
+  const item = (name, extra) => a.call('POST', '/items', { homeId: home.id, roomId: fridge.id, name, ...extra }).then((r) => r.data)
+  const milk = await item('우유') // 냉장고에 바로 둔 물건
+  const egg = await item('계란', { storageLocationId: eggTray.id })
+  const sponge = (await a.call('POST', '/items', { homeId: home.id, roomId: kitchen.id, name: '수세미', storageLocationId: sink.id })).data
+  const passport = (await a.call('POST', '/items', { homeId: home.id, roomId: otherRoom.id, name: '여권' })).data
+  const photo = await a.call('POST', `/items/${milk.id}/images`, undefined, { form: imageForm() })
+
+  // 옮길 수 없는 경우
+  assert.equal((await a.call('POST', `/rooms/${fridge.id}/move-into`, { targetRoomId: fridge.id })).code, 'ROOM_MOVE_INVALID')
+  assert.equal((await a.call('POST', `/rooms/${fridge.id}/move-into`, {})).status, 422)
+  const home2 = (await a.call('POST', '/homes', { name: '부모님 집' })).data
+  const farRoom = (await a.call('POST', `/homes/${home2.id}/rooms`, { name: '창고' })).data
+  assert.equal((await a.call('POST', `/rooms/${fridge.id}/move-into`, { targetRoomId: farRoom.id })).code, 'ROOM_MOVE_INVALID')
+  const bHome = (await b.call('POST', '/homes', { name: 'B집' })).data
+  const bRoom = (await b.call('POST', `/homes/${bHome.id}/rooms`, { name: 'B방' })).data
+  assert.equal((await a.call('POST', `/rooms/${fridge.id}/move-into`, { targetRoomId: bRoom.id })).code, 'ROOM_MOVE_INVALID')
+  assert.equal((await b.call('POST', `/rooms/${fridge.id}/move-into`, { targetRoomId: bRoom.id })).status, 404)
+
+  // 냉장고 → 주방 안으로
+  const moved = await a.call('POST', `/rooms/${fridge.id}/move-into`, { targetRoomId: kitchen.id })
+  assert.equal(moved.status, 200)
+  assert.equal(moved.data.roomId, kitchen.id)
+  assert.equal(moved.data.fullPath, '냉장고')
+  const fridgeStorageId = moved.data.id
+
+  // 냉장고 보관장소는 없어지고 주방만 남는다
+  const rooms = (await a.call('GET', `/homes/${home.id}/rooms`)).data.map((r) => r.name)
+  assert.deepEqual(rooms.sort(), ['안방', '주방'])
+  assert.equal((await a.call('GET', `/rooms/${fridge.id}`)).status, 404)
+
+  // 주방의 수납공간 트리: 싱크대, 냉장고 > 문 칸 > 계란 칸
+  const tree = (await a.call('GET', `/rooms/${kitchen.id}/storage-locations`)).data
+  const fridgeNode = tree.find((n) => n.name === '냉장고')
+  assert.deepEqual(tree.map((n) => n.name).sort(), ['냉장고', '싱크대'])
+  assert.deepEqual(fridgeNode.children.map((n) => n.name), ['문 칸'])
+  assert.deepEqual(fridgeNode.children[0].children.map((n) => n.name), ['계란 칸'])
+
+  // 물건: 방은 주방으로, 위치 경로는 냉장고 아래로
+  const milkAfter = (await a.call('GET', `/items/${milk.id}`)).data
+  assert.equal(milkAfter.roomId, kitchen.id)
+  assert.equal(milkAfter.roomName, '주방')
+  assert.equal(milkAfter.storageLocationId, fridgeStorageId)
+  assert.equal(milkAfter.storageFullPath, '냉장고')
+  assert.equal(milkAfter.images.length, 1) // 사진은 그대로
+  assert.ok(IMAGES.objects.has(new URL(photo.data.imageUrl).pathname.slice(1)))
+  const eggAfter = (await a.call('GET', `/items/${egg.id}`)).data
+  assert.equal(eggAfter.roomId, kitchen.id)
+  assert.equal(eggAfter.storageLocationId, eggTray.id)
+  assert.equal(eggAfter.storageFullPath, '냉장고 > 문 칸 > 계란 칸')
+
+  // 다른 물건은 그대로
+  assert.equal((await a.call('GET', `/items/${sponge.id}`)).data.storageFullPath, '싱크대')
+  assert.equal((await a.call('GET', `/items/${passport.id}`)).data.roomId, otherRoom.id)
+  assert.equal(DB.raw.prepare('SELECT count(*) n FROM items WHERE user_id=?').get(a.id).n, 4)
+})
