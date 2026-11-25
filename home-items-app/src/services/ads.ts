@@ -51,7 +51,7 @@ function applyLayout() {
   // 더해서 올려야 내용이 배너에 가려지지 않는다. Capacitor 가 --safe-area-inset-bottom 으로 그 높이를 알려 준다.
   const NAV_BAR = 'max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px))'
   app.style.marginBottom = shown ? `calc(${bannerHeight + GAP_PX}px + ${NAV_BAR})` : ''
-  app.classList.toggle('has-banner', shown) // 경계선 표시(theme/variables.css)
+  app.classList.toggle('has-banner', shown) // 광고가 떠 있을 때의 스타일(theme/variables.css)
 }
 
 /** SDK 초기화와 광고 동의 확인(최초 1회). 실패하면 광고 없이 계속 쓴다. */
