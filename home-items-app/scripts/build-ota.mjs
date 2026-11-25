@@ -1,9 +1,10 @@
 // 웹 버전을 빌드하고, 같은 빌드로 앱용 OTA 묶음(zip)과 안내 파일(manifest.json)을 dist/ota 에 만든다.
 // `npm run deploy:web` 이 이 스크립트를 실행한 뒤 dist 전체를 올린다.
 //
-//   dist/ota/manifest.json            앱이 확인하는 파일 { version, builtAt, url, minNativeBuild }
+//   dist/ota/manifest.json            앱이 확인하는 파일 { version, builtAt, url, checksum, minNativeBuild }
 //   dist/ota/bundle-<version>.zip     앱이 내려받는 웹 묶음 (dist 내용, ota 폴더 제외)
 import { execSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -45,11 +46,14 @@ if (!zip.getEntry('index.html')) throw new Error('묶음 맨 위에 index.html �
 
 const zipName = `bundle-${version}.zip`
 zip.writeZip(join(otaDir, zipName))
+// 업데이트 플러그인(8.x)은 체크섬(zip 의 SHA-256, 소문자 16진수)이 없으면 내려받기를 거부한다.
+const checksum = createHash('sha256').update(readFileSync(join(otaDir, zipName))).digest('hex')
 
 const manifest = {
   version,
   builtAt,
   url: `${config.publicBaseUrl.replace(/\/$/, '')}/ota/${zipName}`,
+  checksum,
   minNativeBuild: config.minNativeBuild,
 }
 writeFileSync(join(otaDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')

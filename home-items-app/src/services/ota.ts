@@ -25,7 +25,7 @@ const MANIFEST_URL: string =
 export const APP_BUILD: string = __APP_BUILD__
 const APP_BUILT_AT: number = __APP_BUILT_AT__
 
-type Manifest = { version: string; builtAt: number; url: string; minNativeBuild?: number }
+type Manifest = { version: string; builtAt: number; url: string; checksum?: string; minNativeBuild?: number }
 
 // "업데이트 중" 화면의 상태(App.vue 가 그린다). percent 는 내려받은 비율(0~100).
 export const otaState = ref({ active: false, percent: 0 })
@@ -37,6 +37,14 @@ const RESUME_CHECK_INTERVAL_MS = 30 * 60 * 1000
 // 적용을 시도한 버전과, 적용했다가 되돌려진 버전. 기기에만 저장한다.
 const ATTEMPT_KEY = 'home_items_ota_attempt'
 const FAILED_KEY = 'home_items_ota_failed'
+
+// 마지막 업데이트 실패 사유. 내 정보 화면 맨 아래에 버전과 함께 보여 준다(기기에서 원인을 바로 알 수 있게).
+const ERROR_KEY = 'home_items_ota_error'
+export const otaLastError = (): string => localStorage.getItem(ERROR_KEY) ?? ''
+function recordOtaError(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error)
+  localStorage.setItem(ERROR_KEY, message.slice(0, 200))
+}
 
 const otaSupported = () => Capacitor.isNativePlatform() && import.meta.env.PROD
 
@@ -69,7 +77,8 @@ async function findUpdate(timeoutMs: number): Promise<Manifest | null> {
     const res = await fetch(MANIFEST_URL, { cache: 'no-store', signal: controller.signal })
     if (!res.ok) return null
     const manifest = (await res.json()) as Manifest
-    if (!manifest?.version || !manifest.url || !Number.isFinite(manifest.builtAt)) return null
+    // checksum 이 없으면 플러그인이 내려받기를 거부하므로("Checksum required") 받을 수 없는 묶음으로 본다.
+    if (!manifest?.version || !manifest.url || !manifest.checksum || !Number.isFinite(manifest.builtAt)) return null
 
     // 더 새 묶음만 받는다. 스토어로 받은 앱이 웹보다 최신이면 옛 묶음으로 내려가지 않는다.
     if (manifest.version === APP_BUILD || manifest.builtAt <= APP_BUILT_AT) return null
@@ -91,7 +100,8 @@ async function findUpdate(timeoutMs: number): Promise<Manifest | null> {
 async function fetchBundle(manifest: Manifest): Promise<BundleInfo> {
   const { bundles } = await CapacitorUpdater.list()
   const ready = bundles.find((b) => b.version === manifest.version && (b.status === 'success' || b.status === 'pending'))
-  return ready ?? CapacitorUpdater.download({ url: manifest.url, version: manifest.version })
+  // checksum(zip 의 SHA-256)은 필수다. 플러그인 8.x 는 없으면 내려받지 않고, 받은 파일과 다르면 버린다.
+  return ready ?? CapacitorUpdater.download({ url: manifest.url, version: manifest.version, checksum: manifest.checksum })
 }
 
 /** 앱을 켤 때: 새 버전이 있으면 "업데이트 중" 화면을 띄우고 받아서 바로 적용한다. */
@@ -122,9 +132,11 @@ async function updateOnLaunch(): Promise<void> {
     }
     otaState.value = { active: true, percent: 100 }
     localStorage.setItem(ATTEMPT_KEY, manifest.version)
+    localStorage.removeItem(ERROR_KEY)
     await CapacitorUpdater.set({ id: result.id }) // 새 묶음으로 화면이 다시 뜬다
   } catch (error) {
     console.warn('OTA 업데이트 실패', error)
+    recordOtaError(error)
   } finally {
     void progress.remove()
     otaState.value = { active: false, percent: 0 }
@@ -147,6 +159,7 @@ async function updateInBackground(): Promise<void> {
     await CapacitorUpdater.next({ id: bundle.id })
   } catch (error) {
     console.warn('OTA 업데이트 확인 실패', error)
+    recordOtaError(error)
   } finally {
     checking = false
   }

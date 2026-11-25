@@ -29,6 +29,7 @@ import {
   syncExpiryReminders,
 } from '@/services/expiryReminder'
 import { useAuthStore } from '@/stores/auth'
+import { APP_BUILD, otaLastError } from '@/services/ota'
 import { authApi } from '@/api'
 import { forgetLastProvider } from '@/services/socialAuth'
 import { extractErrorMessage } from '@/api/client'
@@ -185,12 +186,21 @@ async function confirmDeleteAccount() {
         <ion-button class="delete-account" expand="block" fill="clear" color="medium" size="small" @click="confirmDeleteAccount">
           회원 탈퇴
         </ion-button>
+        <!-- 지금 실행 중인 화면 묶음의 버전. 업데이트가 적용됐는지 확인할 때 본다. -->
+        <p class="app-build">버전 {{ APP_BUILD }}<template v-if="otaLastError()"><br />업데이트 오류: {{ otaLastError() }}</template></p>
       </div>
     </ion-content>
   </ion-page>
 </template>
 
 <style scoped>
+.app-build {
+  margin: 12px 0 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  word-break: break-all;
+}
 .profile {
   text-align: center;
 }
