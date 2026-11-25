@@ -124,7 +124,7 @@ GET/POST/PUT/DELETE  /tags[/{id}]                  태그
 GET/POST/PUT/DELETE  /items[/{id}]                 물건
 GET    /items/search   keyword, home_id, room_id, storage_location_id, category_id, tag_id,
                        expires_before(YYYY-MM-DD, 이 날짜 이전 만료), sort(recent|name|expiration), page, size
-POST   /items/{id}/images              사진 업로드 (multipart, jpg/png/webp/gif/heic, 10MB 이하, 물건당 5장)
+POST   /items/{id}/images              사진 업로드 (multipart, jpg/png/webp/gif/heic, 10MB 이하, 물건당 3장)
 DELETE /items/{id}/images/{imageId}
 ```
 

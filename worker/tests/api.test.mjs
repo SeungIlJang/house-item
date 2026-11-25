@@ -351,8 +351,8 @@ test('가입: 새 사용자에게 기본 집과 보관장소를 만들어 준다
   } finally { globalThis.fetch = originalFetch }
 })
 
-test('사진: 물건당 5장까지만 올릴 수 있다', async () => {
-  assert.equal(LIMITS.imagesPerItem, 5)
+test('사진: 물건당 3장까지만 올릴 수 있다', async () => {
+  assert.equal(LIMITS.imagesPerItem, 3)
   const { user } = setup()
   const { call } = await user()
   const { home, room } = await seed(call)
