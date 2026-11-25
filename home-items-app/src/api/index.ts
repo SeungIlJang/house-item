@@ -131,6 +131,29 @@ export const tagApi = {
   },
 }
 
+/** 사진에서 읽은 값. 못 읽은 항목은 null. */
+export interface LabelRead {
+  name: string | null
+  /** 'YYYY-MM-DD'. 제조일로 표시된 날짜는 여기에 넣지 않는다. */
+  expirationDate: string | null
+  /** 포장에 찍힌 날짜 글자 그대로 */
+  dateText: string | null
+  dateKind: 'expiry' | 'manufacture' | 'unknown'
+}
+
+// ----- 사진 읽기(AI) -----
+export const visionApi = {
+  /** 물건 사진에서 이름과 유통기한을 읽는다. today 는 사용자의 오늘 날짜('YYYY-MM-DD'). */
+  async readLabel(file: File, today: string): Promise<LabelRead> {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('today', today)
+    return unwrap<LabelRead>(
+      await client.post('/vision/label', form, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 30000 }),
+    )
+  },
+}
+
 export interface ItemSearchParams {
   keyword?: string
   homeId?: number

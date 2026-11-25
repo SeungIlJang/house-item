@@ -39,11 +39,11 @@ function toJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob | null
  * 사진을 JPEG 로 줄인다. 압축할 수 없거나(움직이는 GIF, 브라우저가 못 읽는 HEIC 등)
  * 결과가 원본보다 커지면 원본을 그대로 돌려준다. 업로드가 압축 때문에 실패하지 않게 하기 위해서다.
  */
-export async function compressImage(file: File): Promise<File> {
+export async function compressImage(file: File, maxSide = MAX_SIDE): Promise<File> {
   if (file.type === 'image/gif') return file
   try {
     const img = await loadImage(file)
-    const { width, height } = fitWithin(img.naturalWidth, img.naturalHeight)
+    const { width, height } = fitWithin(img.naturalWidth, img.naturalHeight, maxSide)
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height

@@ -31,6 +31,7 @@ import { Capacitor } from '@capacitor/core'
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
 import { homeApi, roomApi, storageApi, categoryApi, tagApi, itemApi, imageUrl } from '@/api'
 import { compressImage } from '@/services/imageCompress'
+import { formatKoreanDate, localToday, readLabel } from '@/services/labelReader'
 import { syncExpiryReminders } from '@/services/expiryReminder'
 import { refreshItemCount } from '@/services/itemCount'
 import { takePickedRoom } from '@/services/placePicker'
@@ -133,8 +134,24 @@ function flattenTree(nodes: StorageTreeNode[], depth = 0): { id: number; label: 
   return out
 }
 
+// 보관장소(방)마다 그 안의 수납공간 목록. 선택 창에서 "주방 > 냉장고"처럼 하위까지 한 번에 고르는 데 쓴다.
+// path 는 보관장소 안에서의 전체 경로("냉장고 > 문 칸"), depth 는 들여쓰기 단계다.
+type PlaceNode = { id: number; name: string; path: string; depth: number }
+const roomStorages = ref<Record<number, PlaceNode[]>>({})
+
+function flattenPlaces(nodes: StorageTreeNode[], prefix = '', depth = 0): PlaceNode[] {
+  return nodes.flatMap((n) => {
+    const path = prefix ? `${prefix} > ${n.name}` : n.name
+    return [{ id: n.id, name: n.name, path, depth }, ...flattenPlaces(n.children ?? [], path, depth + 1)]
+  })
+}
+
 async function loadRooms(homeId: number | null) {
-  rooms.value = homeId ? await roomApi.listByHome(homeId) : []
+  const list = homeId ? await roomApi.listByHome(homeId) : []
+  // 수납공간을 못 불러온 보관장소는 보관장소만 고를 수 있게 둔다(선택 창이 막히지 않도록).
+  const trees = await Promise.all(list.map((r) => storageApi.tree(r.id).catch(() => [] as StorageTreeNode[])))
+  roomStorages.value = Object.fromEntries(list.map((r, i) => [r.id, flattenPlaces(trees[i])]))
+  rooms.value = list
 }
 
 async function loadStorages(roomId: number | null) {
@@ -185,33 +202,60 @@ function goCreateRoom() {
   router.push({ path: `/homes/${form.value.homeId}/rooms`, query: { create: '1', returnTo: 'item' } })
 }
 
-const selectedRoomName = computed(() => rooms.value.find((r) => r.id === form.value.roomId)?.name ?? '')
+// 화면에 보여 줄 고른 위치: "주방" 또는 "주방 > 냉장고 > 문 칸"
+const selectedPlaceLabel = computed(() => {
+  const room = rooms.value.find((r) => r.id === form.value.roomId)
+  if (!room) return ''
+  const storage = roomStorages.value[room.id]?.find((p) => p.id === form.value.storageLocationId)
+  return storage ? `${room.name} > ${storage.path}` : room.name
+})
 
-async function selectRoom(roomId: number) {
-  if (roomId === form.value.roomId) return
-  form.value.roomId = roomId
-  await onRoomChange()
+/** 보관장소와 그 안의 수납공간(없으면 null)을 함께 고른다. */
+async function selectPlace(roomId: number, storageLocationId: number | null) {
+  if (roomId !== form.value.roomId) {
+    form.value.roomId = roomId
+    await loadStorages(roomId)
+  }
+  form.value.storageLocationId = storageLocationId
 }
+
+// 선택 창의 값: 보관장소는 "r:보관장소ID", 수납공간은 "s:보관장소ID:수납공간ID"
+const placeValue = (roomId: number, storageId: number | null) => (storageId ? `s:${roomId}:${storageId}` : `r:${roomId}`)
+// 팝업의 선택 항목은 앞쪽 공백을 지우므로, 들여쓰기는 전각 공백으로 넣는다.
+const INDENT = '\u3000'
 
 // 보관장소 선택 창. 기본 선택 상자(ion-select)에는 버튼을 넣을 수 없어 같은 모양의 창을 직접 띄우고,
 // 오른쪽 위에 [＋ 추가] 버튼을 둔다(위치는 theme/variables.css 의 .room-picker).
 async function openRoomPicker() {
+  const current = form.value.roomId ? placeValue(form.value.roomId, form.value.storageLocationId) : ''
   const alert = await alertController.create({
     header: '보관장소 *',
     cssClass: 'room-picker',
-    inputs: rooms.value.map((r) => ({
-      type: 'radio' as const,
-      label: r.name,
-      value: r.id,
-      checked: r.id === form.value.roomId,
-    })),
+    // 보관장소마다 그 아래 수납공간을 계단식으로 이어 붙인다. 어느 단계든 고를 수 있다.
+    inputs: rooms.value.flatMap((r) => [
+      { type: 'radio' as const, label: r.name, value: placeValue(r.id, null), checked: current === placeValue(r.id, null) },
+      ...(roomStorages.value[r.id] ?? []).map((p) => ({
+        type: 'radio' as const,
+        label: `${INDENT.repeat(p.depth + 1)}└ ${p.name}`,
+        value: placeValue(r.id, p.id),
+        checked: current === placeValue(r.id, p.id),
+      })),
+    ]),
     buttons: [
       { text: '＋ 추가', cssClass: 'room-picker-add', handler: () => void promptCreateRoom() },
       { text: '취소', role: 'cancel' },
-      { text: '확인', handler: (value: number | undefined) => { if (value) void selectRoom(value) } },
+      {
+        text: '확인',
+        handler: (value: string | undefined) => {
+          const [kind, roomId, storageId] = (value ?? '').split(':')
+          if (kind === 'r' || kind === 's') void selectPlace(Number(roomId), kind === 's' ? Number(storageId) : null)
+        },
+      },
     ],
   })
   await alert.present()
+  // 목록이 길면 이미 고른 항목이 화면 밖에 있을 수 있어, 보이는 곳으로 옮긴다.
+  alert.querySelector('[aria-checked="true"]')?.scrollIntoView({ block: 'center' })
 }
 
 // 선택 창에서 바로 보관장소를 추가한다. 화면을 옮기지 않으므로 작성 중인 내용이 그대로 남고, 새 장소가 바로 선택된다.
@@ -244,17 +288,13 @@ async function createRoom(homeId: number, name: string) {
   try {
     const room = await roomApi.create(homeId, name)
     await loadRooms(homeId)
-    await selectRoom(room.id)
+    await selectPlace(room.id, null)
     toast.success(`'${room.name}' 보관장소를 추가했어요.`)
   } catch (e) {
     toast.error(extractErrorMessage(e, '보관장소를 추가하지 못했습니다.'))
   }
 }
 
-async function onRoomChange() {
-  form.value.storageLocationId = null
-  await loadStorages(form.value.roomId)
-}
 
 // 웹(브라우저)에서만 파일 input 사용, 앱(네이티브)에서는 카메라 플러그인 사용
 const isNative = Capacitor.isNativePlatform()
@@ -273,7 +313,62 @@ const photoLimitMessage = `사진은 물건당 ${MAX_PHOTOS_PER_ITEM}장까지 �
 function addPendingPhoto(photo: PendingPhoto): boolean {
   if (photosFull.value) return false
   pendingPhotos.value.push(photo)
+  void queueLabelRead(photo)
   return true
+}
+
+/** 새로 추가한 사진을 파일로 꺼낸다(갤러리 사진은 webPath 에서 가져온다). */
+async function pendingPhotoFile(p: PendingPhoto): Promise<File | null> {
+  if (p.file) return p.file
+  if (!p.fetchUrl) return null
+  const blob = await (await fetch(p.fetchUrl)).blob()
+  return new File([blob], `photo_${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' })
+}
+
+// ── 사진에서 이름·유통기한 읽기 ──
+// 사진을 추가하면 서버의 AI 가 읽어, 비어 있는 이름·유효기간 칸만 채운다(이미 적은 값은 건드리지 않는다).
+// 틀릴 수 있으므로 무엇을 채웠는지 사진 아래에 알려 주고 사용자가 확인하게 한다.
+const labelReading = ref(false)
+const labelNotes = ref<string[]>([])
+let labelQueue: Promise<void> = Promise.resolve()
+let labelRound = 0 // 화면을 비우면(reset) 올라간다. 그 전에 시작한 읽기 결과는 버린다.
+
+const needsLabel = () => !form.value.name.trim() || !form.value.expirationDate
+
+/** 한 장씩 차례로 읽는다. 앞 사진에서 두 칸이 다 채워지면 뒤 사진은 읽지 않는다(하루 읽기 횟수를 아낀다). */
+function queueLabelRead(photo: PendingPhoto): Promise<void> {
+  const round = labelRound
+  labelQueue = labelQueue.then(async () => {
+    if (round !== labelRound || !needsLabel() || !pendingPhotos.value.includes(photo)) return
+    labelReading.value = true
+    try {
+      const file = await pendingPhotoFile(photo).catch(() => null)
+      const read = file ? await readLabel(file) : null
+      if (read && round === labelRound) applyLabel(read)
+    } finally {
+      labelReading.value = false
+    }
+  })
+  return labelQueue
+}
+
+function applyLabel(read: NonNullable<Awaited<ReturnType<typeof readLabel>>>) {
+  if (read.expirationDate && !form.value.expirationDate) {
+    form.value.expirationDate = read.expirationDate
+    const past = read.expirationDate < localToday() ? ' (이미 지난 날짜)' : ''
+    labelNotes.value.push(`유효기간 ${formatKoreanDate(read.expirationDate)}${past}`)
+  } else if (read.dateKind === 'manufacture' && read.dateText && !form.value.expirationDate) {
+    labelNotes.value.push(`제조일(${read.dateText})로 보여 유효기간에는 넣지 않았어요`)
+  }
+  if (read.name && !form.value.name.trim()) {
+    form.value.name = read.name
+    labelNotes.value.push(`이름 '${read.name}'`)
+  }
+}
+
+function clearLabelNotes() {
+  labelRound++
+  labelNotes.value = []
 }
 
 // 웹(브라우저)용 파일 입력
@@ -486,6 +581,7 @@ function reset(keepPlace = false) {
     tagIds: [],
   }
   clearPendingPhotos()
+  clearLabelNotes()
   images.value = []
 }
 
@@ -562,11 +658,7 @@ async function save(then: 'view' | 'continue' = 'view') {
       : await itemApi.create(payload)
 
     for (const p of pendingPhotos.value) {
-      let file = p.file
-      if (!file && p.fetchUrl) {
-        const blob = await (await fetch(p.fetchUrl)).blob()
-        file = new File([blob], `photo_${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' })
-      }
+      const file = await pendingPhotoFile(p)
       if (file) await itemApi.uploadImage(saved.id, await compressImage(file))
     }
 
@@ -643,6 +735,12 @@ onIonViewWillEnter(load)
             </div>
           </div>
 
+          <!-- 사진에서 읽은 내용 안내 -->
+          <p v-if="labelReading" class="label-note"><ion-spinner name="dots" /> 사진에서 이름과 유효기간을 읽는 중…</p>
+          <p v-else-if="labelNotes.length" class="label-note">
+            사진에서 읽어 채웠어요: {{ labelNotes.join(' · ') }}. 맞는지 확인해 주세요.
+          </p>
+
           <div class="photo-actions">
             <ion-button fill="solid" size="default" :disabled="photosFull" @click="takePhoto">
               <ion-icon slot="start" :icon="cameraOutline" />
@@ -689,7 +787,7 @@ onIonViewWillEnter(load)
           <ion-item v-else button detail @click="openRoomPicker">
             <ion-label>
               <p>보관장소 *</p>
-              <h3 v-if="selectedRoomName">{{ selectedRoomName }}</h3>
+              <h3 v-if="selectedPlaceLabel">{{ selectedPlaceLabel }}</h3>
               <h3 v-else class="room-placeholder">보관장소를 선택하세요</h3>
             </ion-label>
           </ion-item>
@@ -730,19 +828,6 @@ onIonViewWillEnter(load)
                 </ion-item>
                 <ion-item>
                   <ion-textarea label="설명" label-placement="stacked" v-model="form.description" :auto-grow="true" />
-                </ion-item>
-                <ion-item v-if="storages.length">
-                  <ion-select
-                    label="수납 위치"
-                    label-placement="stacked"
-                    v-model="form.storageLocationId"
-                    placeholder="선택 안 함"
-                  >
-                    <ion-select-option :value="null">선택 안 함</ion-select-option>
-                    <ion-select-option v-for="s in storages" :key="s.id" :value="s.id">
-                      {{ s.label }}
-                    </ion-select-option>
-                  </ion-select>
                 </ion-item>
                 <ion-item>
                   <ion-select
@@ -812,6 +897,23 @@ onIonViewWillEnter(load)
 <style scoped>
 .photo-first {
   padding-top: 12px;
+}
+.label-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(var(--ion-color-primary-rgb), 0.08);
+  color: var(--ion-color-dark);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.label-note ion-spinner {
+  width: 20px;
+  height: 20px;
+  flex: none;
 }
 .photo-count {
   margin-left: 6px;
