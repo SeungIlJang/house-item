@@ -1,6 +1,6 @@
 // 하단 배너 광고 (Google AdMob). 안드로이드 앱에서만 동작하고 웹에서는 아무것도 하지 않는다.
 //
-// 배너는 웹 화면 위에 덮이는 네이티브 뷰라서, 가려지지 않도록 배너 높이만큼 앱 전체(ion-app)를 위로 올린다.
+// 배너는 웹 화면 위에 덮이는 네이티브 뷰라서, 가려지지 않도록 배너 높이(+ 내비게이션 바 높이)만큼 앱 전체(ion-app)를 위로 올린다.
 // 그래서 화면 맨 아래에 배너, 그 위에 하단 탭 메뉴가 온다.
 //
 // 설정:
@@ -46,7 +46,11 @@ function applyLayout() {
   const app = document.querySelector<HTMLElement>('ion-app')
   if (!app) return
   const shown = visible && bannerHeight > 0
-  app.style.marginBottom = shown ? `${bannerHeight + GAP_PX}px` : ''
+  // 배너는 시스템 내비게이션 바 위에 놓이는데(플러그인이 그만큼 띄운다), 화면이 내비게이션 바 밑까지 그려지는 기기
+  // (안드로이드 15 이상의 edge-to-edge)에서는 웹 화면이 그 밑까지 내려간다. 그래서 배너 높이에 내비게이션 바 높이를
+  // 더해서 올려야 내용이 배너에 가려지지 않는다. Capacitor 가 --safe-area-inset-bottom 으로 그 높이를 알려 준다.
+  const NAV_BAR = 'max(var(--safe-area-inset-bottom, 0px), env(safe-area-inset-bottom, 0px))'
+  app.style.marginBottom = shown ? `calc(${bannerHeight + GAP_PX}px + ${NAV_BAR})` : ''
   app.classList.toggle('has-banner', shown) // 경계선 표시(theme/variables.css)
 }
 

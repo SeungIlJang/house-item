@@ -80,5 +80,7 @@ body {
 }
 /* 광고가 떠 있는 동안에는 앱 아래쪽에 옅은 경계선을 그어, 내용이 광고 밑으로 들어간 것이 아니라 거기서 끝난다는 것을 보여 준다. */
 ion-app.has-banner {
+  /* 앱이 이미 내비게이션 바 위로 올라가 있으므로, 하단 탭 등이 내비게이션 바 여백을 한 번 더 넣지 않게 한다. */
+  --ion-safe-area-bottom: 0px;
   border-bottom: 1px solid var(--ion-color-light-shade, #d7d8da);
 }
