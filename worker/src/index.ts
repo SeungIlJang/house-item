@@ -18,6 +18,9 @@ app.use('*', async (c, next) => cors({
   allowHeaders: ['Authorization', 'Content-Type'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   credentials: true,
+  // 앱은 서버와 주소가 달라 브라우저가 요청마다 사전 확인(OPTIONS)을 먼저 보낸다. 그 결과를 기억하게 해
+  // 같은 주소의 다음 요청부터는 바로 보내게 한다(브라우저마다 상한이 있다. 크롬·안드로이드 WebView 는 2시간).
+  maxAge: 86400,
 })(c, next))
 
 app.use('/api/v1/*', async (c, next) => {

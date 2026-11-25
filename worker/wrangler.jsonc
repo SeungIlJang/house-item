@@ -4,6 +4,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
+  // 서버 코드를 요청이 들어온 지점(한국 통신사는 흔히 미국)이 아니라 DB 가까이에서 돌린다.
+  // 요청 하나가 DB 를 여러 번 조회하므로, 조회마다 바다를 건너는 왕복(약 0.14초씩)이 없어진다.
+  "placement": { "mode": "smart" },
   "vars": {
     "APP_ENV": "production",
     // https://localhost = 안드로이드 앱 WebView, 나머지 = 웹 버전(home-items-app/wrangler.jsonc)
