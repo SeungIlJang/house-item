@@ -9,6 +9,7 @@ import { registerHomeRoutes } from './routes/homes.ts'
 import { registerStorageRoutes } from './routes/storage.ts'
 import { registerTaxonomyRoutes } from './routes/taxonomy.ts'
 import { registerItemRoutes } from './routes/items.ts'
+import { registerVisionRoutes } from './routes/vision.ts'
 
 const app = new Hono<AppEnv>()
 
@@ -39,6 +40,7 @@ registerHomeRoutes(app)
 registerStorageRoutes(app)
 registerTaxonomyRoutes(app)
 registerItemRoutes(app)
+registerVisionRoutes(app)
 
 app.onError((error, c) => {
   if (error instanceof ApiError) return c.json(fail(error.message, error.code), error.status)

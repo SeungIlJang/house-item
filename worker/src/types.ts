@@ -3,6 +3,7 @@ import type { Hono } from 'hono'
 export type Bindings = {
   DB: D1Database
   IMAGES: R2Bucket
+  AI?: Ai // 사진에서 이름·유통기한 읽기(Workers AI). 없으면 그 기능만 꺼진다.
   JWT_SECRET_KEY: string
   APP_ENV: string
   CORS_ORIGINS: string

@@ -21,6 +21,8 @@
       "migrations_dir": "migrations"
     }
   ],
+  // 사진에서 이름·유통기한 읽기(Workers AI). 무료 한도: 하루 10,000 뉴런.
+  "ai": { "binding": "AI" },
   "r2_buckets": [
     {
       "binding": "IMAGES",
