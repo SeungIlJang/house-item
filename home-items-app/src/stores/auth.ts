@@ -6,6 +6,7 @@ import { clearToken, getToken, setToken } from '@/api/client'
 import { markLoginSucceeded, signInWith, type SocialProvider } from '@/services/socialAuth'
 import { cancelExpiryReminders } from '@/services/expiryReminder'
 import { forgetLastPlace } from '@/services/lastPlace'
+import { clearDashboardCache } from '@/services/dashboardCache'
 import type { User } from '@/types/api'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -39,6 +40,7 @@ export const useAuthStore = defineStore('auth', () => {
     // 다른 계정으로 로그인했을 때 이전 사용자의 물건 알림이 울리지 않도록 지운다.
     void cancelExpiryReminders().catch(() => {})
     forgetLastPlace() // 다른 계정의 보관 위치가 다음 사용자에게 채워지지 않게 한다.
+    clearDashboardCache() // 홈 화면에 저장해 둔 지난번 목록도 지운다.
     clearToken()
     user.value = null
     isAuthenticated.value = false

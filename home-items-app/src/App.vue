@@ -36,7 +36,8 @@ watch(
       reportItemCount(null)
       return
     }
-    void refreshItemCount()
+    // 홈 화면은 목록을 불러오면서 물건 수도 함께 알려 주므로(DashboardPage), 거기서 시작할 때는 따로 묻지 않는다.
+    if (route.path !== '/tabs/home') void refreshItemCount()
     if (adsSupported() && !auth.user) void auth.fetchMe().catch(() => {})
   },
   { immediate: true },

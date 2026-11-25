@@ -29,6 +29,7 @@ import { useToast } from '@/composables/useToast'
 import type { Item } from '@/types/api'
 import { syncExpiryReminders } from '@/services/expiryReminder'
 import { reportItemCount } from '@/services/itemCount'
+import { readDashboardCache, saveDashboardCache, type DashboardData } from '@/services/dashboardCache'
 import { addDays, toLocalDateString } from '@/utils/expiry'
 
 // 홈에 보여 줄 유통기한 임박 기준(오늘부터 7일 안, 이미 지난 것 포함)
@@ -57,21 +58,49 @@ function pickTab(value: unknown) {
   tabPicked = true
 }
 
+// 화면에 내용을 채운다(서버 응답이든, 기기에 저장해 둔 지난번 내용이든).
+let shown = false
+function show(data: DashboardData) {
+  totalItems.value = data.totalItems
+  reportItemCount(data.totalItems) // 하단 탭 숫자와 광고 유예 판정에 쓴다
+  recentItems.value = data.recentItems
+  expiringItems.value = data.expiringItems
+  expiringTotal.value = data.expiringTotal
+  if (!tabPicked) activeTab.value = tabOrder.value[0]
+  shown = true
+  loading.value = false
+}
+
+// 홈에 들어올 때마다 알림을 다시 맞추면 그때마다 목록 요청이 하나 더 나간다. 한 시간에 한 번이면 충분하다.
+// (물건을 저장·삭제할 때는 그 화면에서 바로 다시 맞춘다)
+const REMINDER_SYNC_INTERVAL_MS = 60 * 60 * 1000
+let lastReminderSync = 0
+
 async function load() {
-  loading.value = true
+  // 서버 응답을 기다리는 동안 지난번에 본 내용을 먼저 보여 준다. 보여 줄 것이 전혀 없을 때만 로딩 표시를 띄운다.
+  if (!shown) {
+    const cached = readDashboardCache()
+    if (cached) show(cached)
+  }
+  loading.value = !shown
   try {
     const expiresBefore = toLocalDateString(addDays(new Date(), EXPIRING_DAYS))
     const [page, expiring] = await Promise.all([
       itemApi.list(1, 5),
       itemApi.search({ expiresBefore, sort: 'expiration', size: 5 }),
     ])
-    totalItems.value = page.totalElements
-    reportItemCount(page.totalElements) // 하단 탭 숫자와 광고 유예 판정에 쓴다
-    recentItems.value = page.content
-    expiringItems.value = expiring.content
-    expiringTotal.value = expiring.totalElements
-    if (!tabPicked) activeTab.value = tabOrder.value[0]
-    void syncExpiryReminders()
+    const data: DashboardData = {
+      totalItems: page.totalElements,
+      recentItems: page.content,
+      expiringItems: expiring.content,
+      expiringTotal: expiring.totalElements,
+    }
+    show(data)
+    saveDashboardCache(data)
+    if (Date.now() - lastReminderSync > REMINDER_SYNC_INTERVAL_MS) {
+      lastReminderSync = Date.now()
+      void syncExpiryReminders()
+    }
   } catch (e) {
     toast.error(extractErrorMessage(e))
   } finally {
