@@ -19,6 +19,15 @@ export async function setupServiceWorker(): Promise<boolean> {
 
   if (!Capacitor.isNativePlatform()) {
     if (import.meta.env.PROD) {
+      // 새 버전이 배포되면 새 서비스 워커가 넘겨받는다. 그때 화면을 한 번 다시 띄워 새 버전을 바로 보여 준다.
+      // (처음 방문해서 서비스 워커가 처음 붙는 경우에는 다시 띄우지 않는다)
+      const hadController = Boolean(navigator.serviceWorker.controller)
+      let reloaded = false
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController || reloaded) return
+        reloaded = true
+        window.location.reload()
+      })
       window.addEventListener('load', () => void navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {}))
     }
     return false

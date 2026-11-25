@@ -44,6 +44,10 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // 새 버전의 서비스 워커가 기다리지 않고 바로 넘겨받게 한다. injectRegister 를 끄면 플러그인이
+        // 이 두 값을 자동으로 켜 주지 않아, 새 버전이 모든 탭을 닫을 때까지 적용되지 않는다.
+        skipWaiting: true,
+        clientsClaim: true,
         // 업로드 이미지/ API 응답은 캐시하지 않고, 정적 앱 셸만 캐시
         navigateFallbackDenylist: [/^\/api/, /^\/uploads/],
       },
