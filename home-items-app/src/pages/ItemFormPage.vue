@@ -522,8 +522,18 @@ async function load() {
       await loadRooms(item.homeId)
       await loadStorages(item.roomId)
     } else if (homes.value.length > 0) {
+      // 계속 등록하다가 다른 화면으로 나갔다 돌아온 경우: 작성 중인 내용이 없으면 새 등록이므로 장소를 비운다.
+      if (!form.value.name.trim() && pendingPhotos.value.length === 0) {
+        form.value.roomId = null
+        form.value.storageLocationId = null
+        streak.value = 0
+      }
       // 보관장소를 만들고 돌아온 경우처럼 이미 고른 집이 있으면 유지한다.
-      if (!homes.value.some((h) => h.id === form.value.homeId)) form.value.homeId = homes.value[0].id
+      // 없으면 마지막으로 물건을 등록한 집, 그것도 없으면 첫 번째 집(내 물건 화면과 같은 기준).
+      if (!homes.value.some((h) => h.id === form.value.homeId)) {
+        const lastHomeId = getLastPlace()?.homeId
+        form.value.homeId = homes.value.find((h) => h.id === lastHomeId)?.id ?? homes.value[0].id
+      }
       await loadRooms(form.value.homeId)
       // 장소는 최초에 '선택' 상태 — 사용자가 직접 선택
     }
@@ -534,9 +544,9 @@ async function load() {
       form.value.roomId = picked.roomId
       form.value.storageLocationId = null
       await loadStorages(picked.roomId)
-    } else if (!isEdit.value && !form.value.roomId) {
-      await applyLastPlace()
     }
+    // 새로 등록할 때 보관장소는 비워 둔다(사용자가 직접 고른다). 지난번 장소를 미리 채우면 엉뚱한 곳에 그대로 저장되기 쉽다.
+    // 같은 장소가 이어지는 것은 [저장하고 계속 등록]뿐이다(reset(true)).
   } catch (e) {
     toast.error(extractErrorMessage(e))
   } finally {
@@ -550,20 +560,6 @@ async function load() {
     await nextTick()
     if (homes.value.length > 0) void takePhoto()
   }
-}
-
-// 지난번에 등록한 보관 위치를 미리 채운다. 그 사이 지워졌을 수 있으므로 아직 있는지 확인하며 단계별로 적용한다.
-async function applyLastPlace() {
-  const last = getLastPlace()
-  if (!last || !homes.value.some((h) => h.id === last.homeId)) return
-  if (form.value.homeId !== last.homeId) {
-    form.value.homeId = last.homeId
-    await loadRooms(last.homeId)
-  }
-  if (!rooms.value.some((r) => r.id === last.roomId)) return
-  form.value.roomId = last.roomId
-  await loadStorages(last.roomId)
-  form.value.storageLocationId = storages.value.some((s) => s.id === last.storageLocationId) ? last.storageLocationId : null
 }
 
 // keepPlace: 계속 등록할 때는 보관 위치를 그대로 둔다.
