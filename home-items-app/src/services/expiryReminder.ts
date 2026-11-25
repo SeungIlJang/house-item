@@ -66,6 +66,9 @@ export function syncExpiryReminders(): Promise<void> {
           title: p.title,
           body: p.body,
           schedule: { at: p.at, allowWhileIdle: true },
+          // 플러그인 8.3 부터 기본값(true)이면 예약할 때마다 시스템의 "알람 및 리마인더" 설정 화면이 열린다.
+          // 앱이 그 권한을 선언하지 않아 사용자가 켤 수도 없으므로, 정확한 알람을 요구하지 않는다(몇 분 늦게 울릴 수 있다).
+          isExactNotification: false,
           extra: { kind: 'expiry', itemId: p.itemId },
         })),
       })
