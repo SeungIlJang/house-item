@@ -5,6 +5,7 @@ import { IonicVue } from '@ionic/vue'
 import App from './App.vue'
 import router from './router'
 import { startOta } from './services/ota'
+import { setupServiceWorker } from './services/serviceWorker'
 
 /* Ionic 필수 CSS */
 import '@ionic/vue/css/core.css'
@@ -20,7 +21,10 @@ import './theme/variables.css'
 
 const app = createApp(App).use(IonicVue).use(createPinia()).use(router)
 
-router.isReady().then(() => {
+// 앱에서는 서비스 워커를 먼저 지운다. 예전 화면이 캐시에서 뜬 경우에는 화면이 다시 뜨므로 여기서 멈춘다.
+setupServiceWorker().then(async (reloading) => {
+  if (reloading) return
+  await router.isReady()
   app.mount('#app')
   // 화면이 뜬 뒤에 정상 실행을 알리고 OTA 업데이트를 확인한다(안드로이드 앱 전용).
   void startOta()

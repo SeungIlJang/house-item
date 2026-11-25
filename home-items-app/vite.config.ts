@@ -20,6 +20,9 @@ export default defineConfig({
     vue(),
     VitePWA({
       registerType: 'autoUpdate',
+      // 서비스 워커 등록은 직접 한다(src/services/serviceWorker.ts): 웹에서만 등록하고 안드로이드 앱에서는 지운다.
+      // 앱에서 서비스 워커가 돌면 예전 화면을 캐시에서 내줘 OTA 업데이트가 적용되지 않는다.
+      injectRegister: false,
       includeAssets: ['favicon.png', 'apple-touch-icon.png'],
       manifest: {
         name: '집안의모든것',
