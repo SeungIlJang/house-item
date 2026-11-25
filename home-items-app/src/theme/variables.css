@@ -70,3 +70,15 @@ ion-alert.room-picker .alert-wrapper .alert-button.room-picker-add {
 ion-alert.alert-pre-line .alert-wrapper .alert-message {
   white-space: pre-line;
 }
+
+/* 하단 배너 광고가 뜨면 앱 전체(ion-app)를 배너 높이만큼 위로 올린다(services/ads.ts).
+   그때 드러나는 앱과 배너 사이 틈이 검게 보이지 않도록 바탕을 앱 배경색으로 칠한다.
+   (바탕색이 없으면 WebView 의 검은 바탕이 비쳐, 화면 내용이 검은 띠와 광고에 겹쳐 잘린 것처럼 보인다) */
+html,
+body {
+  background: var(--ion-background-color, #fff);
+}
+/* 광고가 떠 있는 동안에는 앱 아래쪽에 옅은 경계선을 그어, 내용이 광고 밑으로 들어간 것이 아니라 거기서 끝난다는 것을 보여 준다. */
+ion-app.has-banner {
+  border-bottom: 1px solid var(--ion-color-light-shade, #d7d8da);
+}

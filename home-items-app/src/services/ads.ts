@@ -44,7 +44,10 @@ let queue: Promise<void> = Promise.resolve()
 
 function applyLayout() {
   const app = document.querySelector<HTMLElement>('ion-app')
-  if (app) app.style.marginBottom = visible && bannerHeight > 0 ? `${bannerHeight + GAP_PX}px` : ''
+  if (!app) return
+  const shown = visible && bannerHeight > 0
+  app.style.marginBottom = shown ? `${bannerHeight + GAP_PX}px` : ''
+  app.classList.toggle('has-banner', shown) // 경계선 표시(theme/variables.css)
 }
 
 /** SDK 초기화와 광고 동의 확인(최초 1회). 실패하면 광고 없이 계속 쓴다. */
