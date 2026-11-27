@@ -189,6 +189,24 @@ DELETE /items/{id}/images/{imageId}
 
 광고 SDK 가 `AD_ID` 권한을 자동으로 추가하므로, Play Console 의 광고 ID 선언과 광고 포함 여부는 "예"로 둡니다.
 
+## 언어 리소스 (안드로이드 앱)
+
+앱에는 한국어와 영어 리소스만 넣습니다. 따로 막지 않으면 AndroidX·광고 SDK 등 라이브러리가 가진
+80여 개 언어의 문구가 함께 들어가 용량이 늘고, Play Console 에도 지원 언어가 그만큼 표시됩니다.
+
+`android/` 는 git 에 없으므로, 새로 만들었을 때마다 `android/app/build.gradle` 의 `android { }` 안에 넣습니다.
+
+```gradle
+android {
+    androidResources {
+        localeFilters += ["ko", "en"]
+    }
+}
+```
+
+`localeFilters` 를 모르는 옛 Android Gradle Plugin 이면 `defaultConfig { resourceConfigurations += ["ko", "en"] }` 를 씁니다.
+빌드 뒤 확인: `bundletool dump config --bundle=app-release.aab` 결과나 Play Console 의 App Bundle 탐색기 "현지화" 항목에 ko, en 만 나와야 합니다.
+
 ## 알려진 제한사항
 
 - 집은 한 사용자 소유입니다 (가족 공유 미지원).
