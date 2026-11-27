@@ -35,6 +35,7 @@ import { syncExpiryReminders } from '@/services/expiryReminder'
 import { refreshItemCount } from '@/services/itemCount'
 import { daysUntil, expiryLabel, expiryTone } from '@/utils/expiry'
 import type { Item } from '@/types/api'
+import { handleExpiredItem, isExpired } from '@/services/expiredActions'
 
 const route = useRoute()
 const router = useRouter()
@@ -109,6 +110,14 @@ async function confirmDelete() {
     ],
   })
   await alert.present()
+}
+
+// 유통기한이 지난 물건 처리: 지웠으면 목록으로 돌아가고, 날짜를 바꿨으면 화면에 바로 반영한다.
+async function onHandleExpired() {
+  if (!item.value) return
+  const result = await handleExpiredItem(item.value)
+  if (result?.kind === 'deleted') goBack()
+  else if (result?.kind === 'updated') item.value = result.item
 }
 
 onIonViewWillEnter(load)
@@ -202,6 +211,12 @@ onIonViewWillEnter(load)
             </ion-chip>
           </ion-item>
         </ion-list>
+
+        <div v-if="isExpired(item)" class="ion-padding">
+          <ion-button expand="block" fill="outline" color="danger" @click="onHandleExpired">
+            유통기한 지난 물건 처리
+          </ion-button>
+        </div>
       </template>
 
       <!-- 전체화면 사진 뷰어 (핀치/더블탭 확대, 좌우 넘김) -->

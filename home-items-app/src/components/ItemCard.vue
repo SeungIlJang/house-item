@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { IonCard, IonCardContent, IonChip, IonLabel, IonThumbnail } from '@ionic/vue'
+import { IonButton, IonCard, IonCardContent, IonChip, IonLabel, IonThumbnail } from '@ionic/vue'
 import { imageUrl } from '@/api'
 import { computed } from 'vue'
 import type { Item } from '@/types/api'
 import { daysUntil, expiryLabel, expiryTone } from '@/utils/expiry'
+import { handleExpiredItem, isExpired } from '@/services/expiredActions'
 
-const props = defineProps<{ item: Item }>()
+// expiredAction: 유통기한이 지난 물건에 [처리] 버튼을 붙인다(홈의 유통기한 임박 목록에서만 켠다).
+const props = defineProps<{ item: Item; expiredAction?: boolean }>()
+// 처리해서 물건이 지워지거나 날짜가 바뀌면 알린다. 목록을 다시 불러오는 데 쓴다.
+const emit = defineEmits<{ handled: [] }>()
+async function onHandle() {
+  if (await handleExpiredItem(props.item)) emit('handled')
+}
 // 30일 안에 만료되거나 이미 지난 물건만 표시한다.
 const expiryDays = computed(() => (props.item.expirationDate ? daysUntil(props.item.expirationDate) : null))
 </script>
@@ -35,6 +42,17 @@ const expiryDays = computed(() => (props.item.expirationDate ? daysUntil(props.i
         <div v-if="item.storageFullPath" class="path">📍 {{ item.storageFullPath }}</div>
         <div v-else-if="item.roomName" class="path">📍 {{ item.roomName }}</div>
       </div>
+      <!-- 카드 전체가 상세로 가는 버튼이라, 누름이 카드로 번지지 않게 막는다. -->
+      <ion-button
+        v-if="expiredAction && isExpired(item)"
+        class="handle"
+        size="small"
+        fill="outline"
+        color="danger"
+        @click.stop="onHandle"
+      >
+        처리
+      </ion-button>
     </ion-card-content>
   </ion-card>
 </template>
@@ -63,6 +81,10 @@ const expiryDays = computed(() => (props.item.expirationDate ? daysUntil(props.i
   justify-content: center;
   font-size: 28px;
 }
+.handle {
+  flex-shrink: 0;
+  margin: 0;
+}
 .info {
   min-width: 0;
   flex: 1;
@@ -74,6 +96,7 @@ const expiryDays = computed(() => (props.item.expirationDate ? daysUntil(props.i
 }
 .meta {
   display: flex;
+  flex-wrap: wrap; /* [처리] 버튼이 붙어 좁아지면 카테고리·수량·기한이 다음 줄로 넘어간다 */
   align-items: center;
   gap: 8px;
 }

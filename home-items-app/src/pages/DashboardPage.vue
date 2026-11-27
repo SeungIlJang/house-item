@@ -178,7 +178,7 @@ onIonViewWillEnter(load)
           <template v-else>
             <p class="ion-padding-horizontal section-sub">7일 이내 · {{ expiringTotal }}개 (지난 것 포함)</p>
             <div class="ion-padding-horizontal">
-              <ItemCard v-for="item in expiringItems" :key="item.id" :item="item" />
+              <ItemCard v-for="item in expiringItems" :key="item.id" :item="item" expired-action @handled="load" />
             </div>
           </template>
         </template>
