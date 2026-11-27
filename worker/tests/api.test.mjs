@@ -116,6 +116,8 @@ test('물건 목록: 20개를 불러와도 쿼리 수가 D1 무료 한도(50) �
   assert.equal(list.data.totalPages, 2)
   assert.equal(list.data.content.length, 20)
   assert.ok(list.queries <= 8, `쿼리 ${list.queries}회`)
+  // DB 왕복은 사용자 확인 1회 + 목록 batch 1회뿐이고, 둘은 동시에 나간다.
+  assert.equal(list.trips, 2, `DB 왕복 ${list.trips}회`)
   for (const item of list.data.content) {
     assert.ok(item.storageFullPath.startsWith('붙박이장 > '))
     assert.deepEqual(item.tags.map((t) => t.name), ['여행', '중요'])
@@ -252,7 +254,13 @@ test('회원 탈퇴: 내 데이터와 사진만 모두 지우고 카카오 연�
     assert.equal(res.status, 200)
   } finally { globalThis.fetch = originalFetch }
 
+  // 탈퇴한 사용자의 토큰은 조회(사용자 확인과 동시에 실행된다)도 변경도 모두 401 로 막힌다.
   assert.equal((await a.call('GET', '/users/me')).status, 401)
+  const afterList = await a.call('GET', '/items')
+  assert.equal(afterList.status, 401)
+  assert.equal(afterList.code, 'USER_NOT_FOUND')
+  assert.equal(afterList.data, null) // 조회 결과는 버려진다
+  assert.equal((await a.call('POST', '/homes', { name: '다시' })).code, 'USER_NOT_FOUND')
   const count = (sql) => DB.raw.prepare(sql).get(a.id).n
   for (const table of ['homes', 'items', 'categories', 'tags', 'auth_identities']) {
     assert.equal(count(`SELECT count(*) n FROM ${table} WHERE user_id=?`), 0, table)

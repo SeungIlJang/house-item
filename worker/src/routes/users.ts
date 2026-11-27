@@ -1,12 +1,14 @@
 import type { App, Row } from '../types.ts'
-import { ok } from '../lib/http.ts'
+import { ApiError, ok } from '../lib/http.ts'
 import { userJson } from '../lib/json.ts'
 import { deleteUserObjects, unlinkKakao } from '../lib/cleanup.ts'
 
 export function registerUserRoutes(app: App) {
   app.get('/api/v1/users/me', async (c) => {
     const user = await c.env.DB.prepare('SELECT * FROM users WHERE id=?').bind(c.get('userId')).first<Row>()
-    return c.json(ok(userJson(user!)))
+    // 조회 요청은 사용자 확인과 동시에 실행되므로(index.ts), 탈퇴한 사용자면 여기서 행이 없을 수 있다.
+    if (!user) throw new ApiError(404, 'USER_NOT_FOUND', '사용자를 찾을 수 없습니다.')
+    return c.json(ok(userJson(user)))
   })
 
   /**

@@ -28,10 +28,19 @@ app.use('/api/v1/*', async (c, next) => {
   const token = c.req.header('Authorization')?.replace(/^Bearer\s+/i, '')
   const userId = token ? await verifyToken(token, c.env.JWT_SECRET_KEY) : null
   if (!userId) return c.json(fail('인증이 필요합니다.', 'NOT_AUTHENTICATED'), 401)
-  const user = await c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(userId).first()
-  if (!user) return c.json(fail('사용자를 찾을 수 없습니다.', 'USER_NOT_FOUND'), 401)
   c.set('userId', userId)
-  return next()
+  // 탈퇴한 사용자의 토큰은 만료 전이라도 받지 않는다.
+  const exists = c.env.DB.prepare('SELECT id FROM users WHERE id = ?').bind(userId).first()
+  const userNotFound = () => c.json(fail('사용자를 찾을 수 없습니다.', 'USER_NOT_FOUND'), 401)
+  if (c.req.method !== 'GET') {
+    if (!(await exists)) return userNotFound()
+    return next()
+  }
+  // 조회(GET)는 아무것도 바꾸지 않으므로, 사용자 확인이 끝나기를 기다리지 않고 조회를 함께 시작한다.
+  // DB 를 한 번 다녀오는 데 0.1초 넘게 걸려서(서버와 DB 가 멀다) 차례로 하면 그만큼 늦어진다.
+  // 사용자가 없으면 조회 결과는 버리고 401 로 바꾼다.
+  const [user] = await Promise.all([exists, next()])
+  if (!user) c.res = userNotFound()
 })
 
 app.get('/health', (c) => c.json(ok({ status: 'ok', env: c.env.APP_ENV })))

@@ -4,7 +4,7 @@ import { text, isId, optionalId, integer, dateField, pathId, queryId, queryInt }
 import { entityJson } from '../lib/json.ts'
 import { ownedHome, ownedRoom, ownedStorage, requireOwned } from '../lib/owned.ts'
 import { deleteObjects, imageKeys } from '../lib/cleanup.ts'
-import { storagePathsStatement, toPathMap } from '../lib/storagePaths.ts'
+import { storagePathsSql, storagePathsStatement, toPathMap } from '../lib/storagePaths.ts'
 import { LIMITS } from '../lib/limits.ts'
 
 export function registerItemRoutes(app: App) {
@@ -33,15 +33,19 @@ export function registerItemRoutes(app: App) {
     ]
     if (storageIds.length) statements.push(storagePathsStatement(db, storageIds))
     const [tagResult, imageResult, pathResult] = await db.batch<Row>(statements)
+    return assembleItems(rows, tagResult.results, imageResult.results, pathResult?.results ?? [])
+  }
 
+  /** 물건 행에 태그·이미지·수납 경로 조회 결과를 붙여 응답 형태로 만든다(DB 를 조회하지 않는다). */
+  const assembleItems = (rows: Row[], tagRows: Row[], imageRows: Row[], pathRows: Row[]) => {
     const group = (list: Row[]) => {
       const map = new Map<number, Row[]>()
       for (const row of list) map.set(row.item_id, [...(map.get(row.item_id) ?? []), row])
       return map
     }
-    const tagsByItem = group(tagResult.results)
-    const imagesByItem = group(imageResult.results)
-    const paths = toPathMap(pathResult?.results ?? [])
+    const tagsByItem = group(tagRows)
+    const imagesByItem = group(imageRows)
+    const paths = toPathMap(pathRows)
 
     return rows.map((row) => {
       const images = (imagesByItem.get(row.id) ?? []).map(imageJson)
@@ -148,12 +152,22 @@ export function registerItemRoutes(app: App) {
     }
     const order = orders[q.sort] ?? 'i.created_at DESC, i.id DESC'
     const db: D1Database = c.env.DB
-    const [countResult, pageResult] = await db.batch<Row>([
-      db.prepare(`SELECT count(*) AS total FROM items i WHERE ${where.join(' AND ')}`).bind(...vals),
-      db.prepare(`${itemBase} WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT ? OFFSET ?`).bind(...vals, size, (page - 1) * size),
+    // 서버와 DB 가 멀리 떨어져 있어(서버는 요청이 들어온 지점, DB 는 아시아) DB 를 한 번 다녀오는 데 0.1초 넘게 걸린다.
+    // 그래서 개수·목록·태그·이미지·수납 경로를 한 번의 batch 로 가져온다. 태그·이미지·경로는 목록의 물건 ID 를
+    // 먼저 받아야 조회할 수 있으므로, "이 페이지의 물건" 을 고르는 조건을 하위 쿼리로 다시 넣는다.
+    const filter = `FROM items i WHERE ${where.join(' AND ')}`
+    const pageVals = [...vals, size, (page - 1) * size]
+    const pageIds = `SELECT i.id ${filter} ORDER BY ${order} LIMIT ? OFFSET ?`
+    const [countResult, pageResult, tagResult, imageResult, pathResult] = await db.batch<Row>([
+      db.prepare(`SELECT count(*) AS total ${filter}`).bind(...vals),
+      db.prepare(`${itemBase} WHERE ${where.join(' AND ')} ORDER BY ${order} LIMIT ? OFFSET ?`).bind(...pageVals),
+      db.prepare(`SELECT it.item_id, t.* FROM item_tags it JOIN tags t ON t.id=it.tag_id WHERE it.item_id IN (${pageIds}) ORDER BY t.name`).bind(...pageVals),
+      db.prepare(`SELECT * FROM item_images WHERE item_id IN (${pageIds}) ORDER BY sort_order,id`).bind(...pageVals),
+      db.prepare(storagePathsSql(`SELECT storage_location_id FROM items WHERE id IN (${pageIds})`)).bind(...pageVals),
     ])
     const total = Number(countResult.results[0]?.total ?? 0)
-    return c.json(ok({ content: await itemsJson(db, pageResult.results), page, size, totalElements: total, totalPages: Math.ceil(total / size) }))
+    const content = assembleItems(pageResult.results, tagResult.results, imageResult.results, pathResult.results)
+    return c.json(ok({ content, page, size, totalElements: total, totalPages: Math.ceil(total / size) }))
   }
 
   app.get('/api/v1/items', listItems)

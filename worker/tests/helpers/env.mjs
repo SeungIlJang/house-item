@@ -21,21 +21,28 @@ function createD1() {
     db.exec(readFileSync(join(MIGRATIONS, file), 'utf8'))
   }
   db.exec('PRAGMA foreign_keys = ON') // D1 은 외래키를 항상 강제한다.
-  const counter = { queries: 0 }
+  // trips: DB 를 다녀온 횟수. batch 는 여러 쿼리를 한 번에 보내므로 1회로 센다(운영에서는 왕복마다 0.1초 넘게 걸린다).
+  const counter = { queries: 0, trips: 0 }
 
   class Statement {
     constructor(sql, params = []) { this.sql = sql; this.params = params }
     bind(...params) { return new Statement(this.sql, params) }
     exec() { counter.queries++; return db.prepare(this.sql) }
     async first(column) {
+      counter.trips++
       const row = plain(this.exec().get(...this.params))
       if (!row) return null
       return column ? row[column] : row
     }
     async all() {
+      counter.trips++
+      return this.rows()
+    }
+    rows() {
       return { success: true, results: this.exec().all(...this.params).map(plain), meta: {} }
     }
     async run() {
+      counter.trips++
       const stmt = this.exec()
       if (/\bRETURNING\b/i.test(this.sql)) {
         return { success: true, results: stmt.all(...this.params).map(plain), meta: {} }
@@ -51,10 +58,11 @@ function createD1() {
     prepare: (sql) => new Statement(sql),
     // D1 batch 는 하나의 트랜잭션으로 실행된다.
     async batch(statements) {
+      counter.trips++
       db.exec('BEGIN')
       try {
         const results = []
-        for (const s of statements) results.push(await s.all())
+        for (const s of statements) results.push(s.rows())
         db.exec('COMMIT')
         return results
       } catch (error) {
@@ -107,11 +115,13 @@ export function setup(overrides = {}) {
       let payload = form ?? raw
       if (body !== undefined) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body) }
       DB.counter.queries = 0
+      DB.counter.trips = 0
       const res = await app.request(`https://api.example/api/v1${path}`, { method, headers, body: payload }, env, ctx)
       const queries = DB.counter.queries
+      const trips = DB.counter.trips
       await Promise.all(pending.splice(0))
       const json = await res.json().catch(() => null)
-      return { status: res.status, json, data: json?.data, code: json?.errorCode, queries }
+      return { status: res.status, json, data: json?.data, code: json?.errorCode, queries, trips }
     }
     return { id, token, call }
   }
