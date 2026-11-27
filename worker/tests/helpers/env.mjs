@@ -110,8 +110,9 @@ export function setup(overrides = {}) {
     const { lastInsertRowid } = DB.raw.prepare('INSERT INTO users(name) VALUES(?)').run(name)
     const id = Number(lastInsertRowid)
     const token = await makeToken(id, SECRET)
-    const call = async (method, path, body, { form, raw } = {}) => {
+    const call = async (method, path, body, { form, raw, lang } = {}) => {
       const headers = { Authorization: `Bearer ${token}` }
+      if (lang) headers['Accept-Language'] = lang // 화면 언어(없으면 한국어)
       let payload = form ?? raw
       if (body !== undefined) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body) }
       DB.counter.queries = 0

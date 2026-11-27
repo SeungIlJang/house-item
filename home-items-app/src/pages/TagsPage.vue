@@ -25,6 +25,7 @@ import { tagApi } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type { Tag } from '@/types/api'
+import { tr } from '@/i18n'
 
 const toast = useToast()
 const loading = ref(true)
@@ -43,12 +44,12 @@ async function load() {
 
 async function promptCreate() {
   const alert = await alertController.create({
-    header: '태그 추가',
-    inputs: [{ name: 'name', placeholder: '예: 중요, 자주사용' }],
+    header: tr('태그 추가', 'Add tag'),
+    inputs: [{ name: 'name', placeholder: tr('예: 중요, 자주사용', 'e.g. Important, Often used') }],
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '추가',
+        text: tr('추가', 'Add'),
         handler: async (data) => {
           if (!data.name?.trim()) return
           try {
@@ -66,12 +67,12 @@ async function promptCreate() {
 
 async function promptEdit(t: Tag) {
   const alert = await alertController.create({
-    header: '태그 수정',
+    header: tr('태그 수정', 'Edit tag'),
     inputs: [{ name: 'name', value: t.name }],
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '저장',
+        text: tr('저장', 'Save'),
         handler: async (data) => {
           if (!data.name?.trim()) return
           try {
@@ -89,12 +90,12 @@ async function promptEdit(t: Tag) {
 
 async function confirmDelete(t: Tag) {
   const alert = await alertController.create({
-    header: '태그 삭제',
-    message: `'${t.name}'을 삭제할까요?`,
+    header: tr('태그 삭제', 'Delete tag'),
+    message: tr(`'${t.name}'을 삭제할까요?`, `Delete '${t.name}'?`),
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '삭제',
+        text: tr('삭제', 'Delete'),
         role: 'destructive',
         handler: async () => {
           try {
@@ -120,7 +121,7 @@ onIonViewWillEnter(load)
         <ion-buttons slot="start">
           <ion-back-button default-href="/tabs/profile" />
         </ion-buttons>
-        <ion-title>태그 관리</ion-title>
+        <ion-title>{{ tr('태그 관리', 'Manage tags') }}</ion-title>
         <ion-buttons slot="end">
           <ion-button @click="promptCreate">
             <ion-icon slot="icon-only" :icon="addOutline" />
@@ -132,8 +133,8 @@ onIonViewWillEnter(load)
       <div v-if="loading" class="center"><ion-spinner /></div>
       <template v-else>
         <div v-if="tags.length === 0" class="empty">
-          <p>태그가 없어요.</p>
-          <ion-button @click="promptCreate">추가하기</ion-button>
+          <p>{{ tr('태그가 없어요.', 'No tags yet.') }}</p>
+          <ion-button @click="promptCreate">{{ tr('추가하기', 'Add') }}</ion-button>
         </div>
         <ion-list v-else>
           <ion-item-sliding v-for="t in tags" :key="t.id">
@@ -141,8 +142,8 @@ onIonViewWillEnter(load)
               <ion-label>{{ t.name }}</ion-label>
             </ion-item>
             <ion-item-options side="end">
-              <ion-item-option @click="promptEdit(t)">수정</ion-item-option>
-              <ion-item-option color="danger" @click="confirmDelete(t)">삭제</ion-item-option>
+              <ion-item-option @click="promptEdit(t)">{{ tr('수정', 'Edit') }}</ion-item-option>
+              <ion-item-option color="danger" @click="confirmDelete(t)">{{ tr('삭제', 'Delete') }}</ion-item-option>
             </ion-item-options>
           </ion-item-sliding>
         </ion-list>

@@ -4,7 +4,15 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
 
-const source = await readFile(new URL('../src/utils/expiry.ts', import.meta.url), 'utf8')
+// 화면 언어 모듈은 한국어/영어 고정 버전으로 바꿔 넣는다.
+const raw = await readFile(new URL('../src/utils/expiry.ts', import.meta.url), 'utf8')
+const load = (pick) => {
+  const text = raw.replace("import { tr } from '@/i18n'", `const tr = (ko, en) => ${pick}`)
+  const out = ts.transpileModule(text, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
+  return import(`data:text/javascript;base64,${Buffer.from(out).toString('base64')}`)
+}
+const english = await load('en')
+const source = raw.replace("import { tr } from '@/i18n'", 'const tr = (ko) => ko')
 const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
 const {
   daysUntil, expiryLabel, expiryTone, toLocalDateString, addDays, planReminders, REMINDER_ID_BASE, MAX_REMINDERS,
@@ -70,4 +78,20 @@ test('알림 계획: 가까운 순으로 최대 개수까지만', () => {
   for (let i = 1; i < plans.length; i++) assert.ok(plans[i - 1].at <= plans[i].at)
   // 가장 빨리 만료되는 50개(id 11~60)가 들어가고, 먼 10개(id 1~10)는 빠진다
   assert.deepEqual(plans.map((p) => p.itemId).sort((a, b) => a - b), Array.from({ length: MAX_REMINDERS }, (_, i) => i + 11))
+})
+
+test('영어 화면의 표시와 알림 문구', () => {
+  assert.equal(english.expiryLabel(-2), '2d overdue')
+  assert.equal(english.expiryLabel(0), 'Expires today')
+  assert.equal(english.expiryLabel(5), 'D-5')
+  const now = local(2026, 11, 19, 7)
+  const plans = english.planReminders([
+    { id: 1, name: '', expirationDate: '2026-11-19' },
+    { id: 2, name: 'Milk', expirationDate: '2026-11-20' },
+    { id: 3, name: 'Eggs', expirationDate: '2026-11-30' },
+  ], 3, 9, now)
+  assert.equal(plans.find((p) => p.itemId === 1).title, 'Unnamed item')
+  assert.equal(plans.find((p) => p.itemId === 1).body, 'Expires today (2026-11-19)')
+  assert.equal(plans.find((p) => p.itemId === 2).body, 'Expires in 1 day (2026-11-20)')
+  assert.equal(plans.find((p) => p.itemId === 3).body, 'Expires in 3 days (2026-11-30)')
 })

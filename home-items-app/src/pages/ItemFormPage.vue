@@ -40,6 +40,7 @@ import { MAX_PHOTOS_PER_ITEM } from '@/config/limits'
 import { toLocalDateString } from '@/utils/expiry'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
+import { tr, plural, uiLocale, isKorean } from '@/i18n'
 import type {
   Category,
   Home,
@@ -61,10 +62,10 @@ const isEdit = computed(() => itemId.value !== null)
 
 const loading = ref(false)
 const saving = ref(false)
-const savingText = ref('저장 중...')
+const savingText = ref(tr('저장 중...', 'Saving...'))
 const photoLoading = ref(false)
 const busy = computed(() => saving.value || photoLoading.value)
-const busyText = computed(() => (saving.value ? savingText.value : '사진 불러오는 중...'))
+const busyText = computed(() => (saving.value ? savingText.value : tr('사진 불러오는 중...', 'Loading photos...')))
 
 // 오버레이(로딩바)를 실제 화면에 먼저 그린 뒤 다음 작업을 진행
 async function paintNow() {
@@ -102,8 +103,8 @@ const form = ref({
 // 날짜 칸(유효기간·구매일). 누르면 달력 창을 띄운다.
 type DateKey = 'expirationDate' | 'purchaseDate'
 const DATE_FIELDS: { key: DateKey; label: string }[] = [
-  { key: 'expirationDate', label: '유효기간' },
-  { key: 'purchaseDate', label: '구매일' },
+  { key: 'expirationDate', label: tr('유효기간', 'Expiry date') },
+  { key: 'purchaseDate', label: tr('구매일', 'Purchase date') },
 ]
 // 달력 창에서 고르는 중인 값. [입력]을 눌러야 form 에 들어가므로 [취소]하면 아무것도 바뀌지 않는다.
 const datePicker = ref<{ key: DateKey; value: string } | null>(null)
@@ -167,12 +168,12 @@ async function onHomeChange() {
 }
 
 const selectedHomeName = computed(
-  () => homes.value.find((h) => h.id === form.value.homeId)?.name ?? '집 선택',
+  () => homes.value.find((h) => h.id === form.value.homeId)?.name ?? tr('집 선택', 'Select home'),
 )
 
 async function changeHome() {
   const alert = await alertController.create({
-    header: '집 선택',
+    header: tr('집 선택', 'Select home'),
     inputs: homes.value.map((h) => ({
       type: 'radio' as const,
       label: h.name,
@@ -180,9 +181,9 @@ async function changeHome() {
       checked: h.id === form.value.homeId,
     })),
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '선택',
+        text: tr('선택', 'Select'),
         handler: async (value: number) => {
           if (value && value !== form.value.homeId) {
             form.value.homeId = value
@@ -229,7 +230,7 @@ const INDENT = '\u3000'
 async function openRoomPicker() {
   const current = form.value.roomId ? placeValue(form.value.roomId, form.value.storageLocationId) : ''
   const alert = await alertController.create({
-    header: '보관장소 *',
+    header: tr('보관장소 *', 'Place *'),
     cssClass: 'room-picker',
     // 보관장소마다 그 아래 수납공간을 계단식으로 이어 붙인다. 어느 단계든 고를 수 있다.
     inputs: rooms.value.flatMap((r) => [
@@ -242,10 +243,10 @@ async function openRoomPicker() {
       })),
     ]),
     buttons: [
-      { text: '＋ 추가', cssClass: 'room-picker-add', handler: () => void promptCreateRoom() },
-      { text: '취소', role: 'cancel' },
+      { text: tr('＋ 추가', '＋ Add'), cssClass: 'room-picker-add', handler: () => void promptCreateRoom() },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '확인',
+        text: tr('확인', 'OK'),
         handler: (value: string | undefined) => {
           const [kind, roomId, storageId] = (value ?? '').split(':')
           if (kind === 'r' || kind === 's') void selectPlace(Number(roomId), kind === 's' ? Number(storageId) : null)
@@ -263,16 +264,16 @@ async function promptCreateRoom() {
   if (!form.value.homeId) return
   const homeId = form.value.homeId
   const alert = await alertController.create({
-    header: '보관장소 추가',
-    inputs: [{ name: 'name', placeholder: '보관장소 이름 (예: 거실)', attributes: { maxlength: 100 } }],
+    header: tr('보관장소 추가', 'Add place'),
+    inputs: [{ name: 'name', placeholder: tr('보관장소 이름 (예: 거실)', 'Place name (e.g. Living room)'), attributes: { maxlength: 100 } }],
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '추가',
+        text: tr('추가', 'Add'),
         handler: (data) => {
           const name = data.name?.trim()
           if (!name) {
-            toast.error('보관장소 이름을 입력해 주세요.')
+            toast.error(tr('보관장소 이름을 입력해 주세요.', 'Please enter a place name.'))
             return false // 창을 닫지 않는다
           }
           void createRoom(homeId, name)
@@ -289,9 +290,9 @@ async function createRoom(homeId: number, name: string) {
     const room = await roomApi.create(homeId, name)
     await loadRooms(homeId)
     await selectPlace(room.id, null)
-    toast.success(`'${room.name}' 보관장소를 추가했어요.`)
+    toast.success(tr(`'${room.name}' 보관장소를 추가했어요.`, `Added place '${room.name}'.`))
   } catch (e) {
-    toast.error(extractErrorMessage(e, '보관장소를 추가하지 못했습니다.'))
+    toast.error(extractErrorMessage(e, tr('보관장소를 추가하지 못했습니다.', 'Could not add the place.')))
   }
 }
 
@@ -307,7 +308,10 @@ function isUserCancel(e: unknown): boolean {
 // 사진은 물건당 MAX_PHOTOS_PER_ITEM 장까지. 이미 저장된 사진과 새로 고른 사진을 합쳐서 센다.
 const photoCount = computed(() => images.value.length + pendingPhotos.value.length)
 const photosFull = computed(() => photoCount.value >= MAX_PHOTOS_PER_ITEM)
-const photoLimitMessage = `사진은 물건당 ${MAX_PHOTOS_PER_ITEM}장까지 올릴 수 있어요.`
+const photoLimitMessage = tr(
+  `사진은 물건당 ${MAX_PHOTOS_PER_ITEM}장까지 올릴 수 있어요.`,
+  `You can add up to ${plural(MAX_PHOTOS_PER_ITEM, 'photo')} per item.`,
+)
 
 /** 한도 안에서만 사진을 추가한다. 넘치면 false 를 돌려준다. */
 function addPendingPhoto(photo: PendingPhoto): boolean {
@@ -355,14 +359,21 @@ function queueLabelRead(photo: PendingPhoto): Promise<void> {
 function applyLabel(read: NonNullable<Awaited<ReturnType<typeof readLabel>>>) {
   if (read.expirationDate && !form.value.expirationDate) {
     form.value.expirationDate = read.expirationDate
-    const past = read.expirationDate < localToday() ? ' (이미 지난 날짜)' : ''
-    labelNotes.value.push(`유효기간 ${formatKoreanDate(read.expirationDate)}${past}`)
+    const past = read.expirationDate < localToday() ? tr(' (이미 지난 날짜)', ' (already past)') : ''
+    // 영어 화면에서는 날짜 칸에 보이는 것과 같은 모양(2026-03-01)으로 적는다.
+    const dateText = isKorean ? formatKoreanDate(read.expirationDate) : read.expirationDate
+    labelNotes.value.push(tr(`유효기간 ${dateText}${past}`, `expiry date ${dateText}${past}`))
   } else if (read.dateKind === 'manufacture' && read.dateText && !form.value.expirationDate) {
-    labelNotes.value.push(`제조일(${read.dateText})로 보여 유효기간에는 넣지 않았어요`)
+    labelNotes.value.push(
+      tr(
+        `제조일(${read.dateText})로 보여 유효기간에는 넣지 않았어요`,
+        `${read.dateText} looks like a manufacture date, so the expiry date was left empty`,
+      ),
+    )
   }
   if (read.name && !form.value.name.trim()) {
     form.value.name = read.name
-    labelNotes.value.push(`이름 '${read.name}'`)
+    labelNotes.value.push(tr(`이름 '${read.name}'`, `name '${read.name}'`))
   }
 }
 
@@ -423,7 +434,7 @@ async function addFromCamera() {
       addPendingPhoto({ previewUrl: URL.createObjectURL(file), file })
     }
   } catch (e) {
-    if (!isUserCancel(e)) toast.error('사진을 가져오지 못했습니다.')
+    if (!isUserCancel(e)) toast.error(tr('사진을 가져오지 못했습니다.', 'Could not get the photo.'))
   }
 }
 
@@ -452,7 +463,7 @@ async function openGallery() {
     // 남은 장수까지만 고를 수 있게 한다.
     result = await Camera.pickImages({ quality: 90, limit: MAX_PHOTOS_PER_ITEM - photoCount.value })
   } catch (e) {
-    if (!isUserCancel(e)) toast.error('갤러리를 열지 못했습니다.')
+    if (!isUserCancel(e)) toast.error(tr('갤러리를 열지 못했습니다.', 'Could not open the gallery.'))
     return
   }
   if (!result.photos.length) return
@@ -586,12 +597,12 @@ async function cancelForm() {
   const hasInput = form.value.name.trim() || pendingPhotos.value.length > 0
   if (hasInput) {
     const alert = await alertController.create({
-      header: '등록 취소',
-      message: '작성 중인 내용이 사라집니다. 취소할까요?',
+      header: tr('등록 취소', 'Discard item?'),
+      message: tr('작성 중인 내용이 사라집니다. 취소할까요?', 'What you have entered will be lost. Discard it?'),
       buttons: [
-        { text: '계속 작성', role: 'cancel' },
+        { text: tr('계속 작성', 'Keep editing'), role: 'cancel' },
         {
-          text: '취소하기',
+          text: tr('취소하기', 'Discard'),
           role: 'destructive',
           handler: () => {
             reset()
@@ -613,27 +624,33 @@ const streak = ref(0)
 // then: view = 저장 후 상세 화면으로, continue = 같은 보관 위치로 다음 물건을 바로 등록
 async function save(then: 'view' | 'continue' = 'view') {
   if (!form.value.homeId) {
-    toast.error('집을 선택해주세요. 먼저 보관 장소에서 집을 등록하세요.')
+    toast.error(tr('집을 선택해주세요. 먼저 보관 장소에서 집을 등록하세요.', 'Please select a home. Add a home in Places first.'))
     return
   }
   if (!form.value.roomId) {
     const noRooms = rooms.value.length === 0
     const alert = await alertController.create({
-      header: noRooms ? '보관장소가 없어요' : '보관장소를 선택해주세요',
+      header: noRooms ? tr('보관장소가 없어요', 'No places yet') : tr('보관장소를 선택해주세요', 'Please select a place'),
       message: noRooms
-        ? '이 집에 등록된 보관장소가 없습니다. 보관장소를 먼저 등록해 주세요. 작성 중인 내용은 그대로 남아요.'
-        : '물건을 등록하려면 보관장소를 먼저 선택해야 합니다.',
+        ? tr(
+            '이 집에 등록된 보관장소가 없습니다. 보관장소를 먼저 등록해 주세요. 작성 중인 내용은 그대로 남아요.',
+            'This home has no places yet. Please add a place first. What you have entered will be kept.',
+          )
+        : tr('물건을 등록하려면 보관장소를 먼저 선택해야 합니다.', 'Select a place first to add an item.'),
       buttons: noRooms
-        ? [{ text: '취소', role: 'cancel' }, { text: '보관장소 등록', handler: () => goCreateRoom() }]
-        : ['확인'],
+        ? [{ text: tr('취소', 'Cancel'), role: 'cancel' }, { text: tr('보관장소 등록', 'Add place'), handler: () => goCreateRoom() }]
+        : [tr('확인', 'OK')],
     })
     await alert.present()
     return
   }
   savingText.value =
     pendingPhotos.value.length > 0
-      ? `저장 중... (사진 ${pendingPhotos.value.length}장 업로드)`
-      : '저장 중...'
+      ? tr(
+          `저장 중... (사진 ${pendingPhotos.value.length}장 업로드)`,
+          `Saving... (uploading ${plural(pendingPhotos.value.length, 'photo')})`,
+        )
+      : tr('저장 중...', 'Saving...')
   saving.value = true
   await paintNow() // 오버레이를 먼저 그린 뒤 무거운 작업 시작
   try {
@@ -665,13 +682,18 @@ async function save(then: 'view' | 'continue' = 'view') {
     }
     if (!isEdit.value && then === 'continue') {
       streak.value += 1
-      toast.success(`${streak.value}개 등록했어요. 다음 물건을 찍어 주세요.`)
+      toast.success(
+        tr(
+          `${streak.value}개 등록했어요. 다음 물건을 찍어 주세요.`,
+          `${plural(streak.value, 'item')} added. Take a photo of the next one.`,
+        ),
+      )
       reset(true)
       void takePhoto()
       return
     }
     streak.value = 0
-    toast.success(isEdit.value ? '수정되었습니다.' : '등록되었습니다.')
+    toast.success(isEdit.value ? tr('수정되었습니다.', 'Changes saved.') : tr('등록되었습니다.', 'Item added.'))
     if (isEdit.value) {
       router.back()
     } else {
@@ -679,7 +701,7 @@ async function save(then: 'view' | 'continue' = 'view') {
       router.push({ path: `/items/${saved.id}`, query: { from: 'add' } }) // 상세에서 뒤로가면 목록으로
     }
   } catch (e) {
-    toast.error(extractErrorMessage(e, '저장에 실패했습니다.'))
+    toast.error(extractErrorMessage(e, tr('저장에 실패했습니다.', 'Could not save.')))
   } finally {
     saving.value = false
   }
@@ -694,9 +716,9 @@ onIonViewWillEnter(load)
       <ion-toolbar>
         <ion-buttons slot="start">
           <ion-back-button v-if="isEdit" default-href="/tabs/home" />
-          <ion-button v-else @click="cancelForm">취소</ion-button>
+          <ion-button v-else @click="cancelForm">{{ tr('취소', 'Cancel') }}</ion-button>
         </ion-buttons>
-        <ion-title>{{ isEdit ? '물건 수정' : '물건 등록' }}</ion-title>
+        <ion-title>{{ isEdit ? tr('물건 수정', 'Edit item') : tr('물건 등록', 'Add item') }}</ion-title>
         <ion-buttons slot="end" v-if="homes.length > 0">
           <ion-button @click="changeHome">
             {{ selectedHomeName }}
@@ -715,8 +737,8 @@ onIonViewWillEnter(load)
       <div v-if="loading" class="center"><ion-spinner /></div>
       <template v-else>
         <div v-if="homes.length > 0" class="ion-padding-horizontal photo-first">
-          <ion-label class="section">사진 <span class="photo-count">{{ photoCount }}/{{ MAX_PHOTOS_PER_ITEM }}</span></ion-label>
-          <p v-if="!isEdit" class="photo-hint">사진만 찍어도 등록할 수 있어요. 이름은 나중에 적어도 됩니다.</p>
+          <ion-label class="section">{{ tr('사진', 'Photos') }} <span class="photo-count">{{ photoCount }}/{{ MAX_PHOTOS_PER_ITEM }}</span></ion-label>
+          <p v-if="!isEdit" class="photo-hint">{{ tr('사진만 찍어도 등록할 수 있어요. 이름은 나중에 적어도 됩니다.', 'A photo is enough to add an item. You can enter the name later.') }}</p>
 
           <div v-if="images.length || pendingPhotos.length" class="images">
             <!-- 이미 저장된 사진(수정 화면) -->
@@ -732,19 +754,19 @@ onIonViewWillEnter(load)
           </div>
 
           <!-- 사진에서 읽은 내용 안내 -->
-          <p v-if="labelReading" class="label-note"><ion-spinner name="dots" /> 사진에서 이름과 유효기간을 읽는 중…</p>
+          <p v-if="labelReading" class="label-note"><ion-spinner name="dots" /> {{ tr('사진에서 이름과 유효기간을 읽는 중…', 'Reading the name and expiry date from the photo…') }}</p>
           <p v-else-if="labelNotes.length" class="label-note">
-            사진에서 읽어 채웠어요: {{ labelNotes.join(' · ') }}. 맞는지 확인해 주세요.
+            {{ tr('사진에서 읽어 채웠어요:', 'Filled in from the photo:') }} {{ labelNotes.join(' · ') }}. {{ tr('맞는지 확인해 주세요.', 'Please check that it is correct.') }}
           </p>
 
           <div class="photo-actions">
             <ion-button fill="solid" size="default" :disabled="photosFull" @click="takePhoto">
               <ion-icon slot="start" :icon="cameraOutline" />
-              사진 촬영
+              {{ tr('사진 촬영', 'Take photo') }}
             </ion-button>
             <ion-button fill="outline" size="default" :disabled="photosFull" @click="openGallery">
               <ion-icon slot="start" :icon="imagesOutline" />
-              갤러리
+              {{ tr('갤러리', 'Gallery') }}
             </ion-button>
           </div>
 
@@ -767,32 +789,32 @@ onIonViewWillEnter(load)
         </div>
 
         <div v-if="homes.length === 0" class="empty">
-          <p>먼저 집을 등록해야 물건을 추가할 수 있어요.</p>
-          <ion-button @click="router.push('/places')">보관 장소로 이동</ion-button>
+          <p>{{ tr('먼저 집을 등록해야 물건을 추가할 수 있어요.', 'Add a home first to start adding items.') }}</p>
+          <ion-button @click="router.push('/places')">{{ tr('보관 장소로 이동', 'Go to Places') }}</ion-button>
         </div>
 
         <ion-list v-else>
           <!-- 고른 집에 보관장소가 하나도 없으면 고를 게 없으므로 등록 화면으로 안내한다. -->
           <ion-item v-if="rooms.length === 0" button detail @click="goCreateRoom">
             <ion-label>
-              <p>보관장소 *</p>
-              <h3>등록된 보관장소가 없어요</h3>
-              <p class="create-room-link">눌러서 보관장소 등록하기</p>
+              <p>{{ tr('보관장소 *', 'Place *') }}</p>
+              <h3>{{ tr('등록된 보관장소가 없어요', 'No places yet') }}</h3>
+              <p class="create-room-link">{{ tr('눌러서 보관장소 등록하기', 'Tap to add a place') }}</p>
             </ion-label>
           </ion-item>
           <ion-item v-else button detail @click="openRoomPicker">
             <ion-label>
-              <p>보관장소 *</p>
+              <p>{{ tr('보관장소 *', 'Place *') }}</p>
               <h3 v-if="selectedPlaceLabel">{{ selectedPlaceLabel }}</h3>
-              <h3 v-else class="room-placeholder">보관장소를 선택하세요</h3>
+              <h3 v-else class="room-placeholder">{{ tr('보관장소를 선택하세요', 'Select a place') }}</h3>
             </ion-label>
           </ion-item>
           <ion-item>
             <ion-input
-              label="이름"
+              :label="tr('이름', 'Name')"
               label-placement="stacked"
               v-model="form.name"
-              placeholder="예: 휴대전화 충전기 (선택)"
+              :placeholder="tr('예: 휴대전화 충전기 (선택)', 'e.g. Phone charger (optional)')"
             />
           </ion-item>
           <!-- 날짜 칸: 누르면 달력 창이 뜬다. [입력]을 눌러야 날짜가 들어가고 [취소]하면 바뀌지 않는다. -->
@@ -800,7 +822,7 @@ onIonViewWillEnter(load)
             <ion-label>
               <p>{{ field.label }}</p>
               <h3 v-if="form[field.key]">{{ form[field.key] }}</h3>
-              <h3 v-else class="room-placeholder">눌러서 날짜 입력</h3>
+              <h3 v-else class="room-placeholder">{{ tr('눌러서 날짜 입력', 'Tap to set a date') }}</h3>
             </ion-label>
           </ion-item>
         </ion-list>
@@ -809,13 +831,13 @@ onIonViewWillEnter(load)
         <ion-accordion-group>
           <ion-accordion value="detail">
             <ion-item slot="header">
-              <ion-label>상세 정보 (선택)</ion-label>
+              <ion-label>{{ tr('상세 정보 (선택)', 'Details (optional)') }}</ion-label>
             </ion-item>
             <div slot="content">
               <ion-list>
                 <ion-item>
                   <ion-input
-                    label="수량"
+                    :label="tr('수량', 'Quantity')"
                     label-placement="stacked"
                     type="number"
                     min="0"
@@ -823,16 +845,16 @@ onIonViewWillEnter(load)
                   />
                 </ion-item>
                 <ion-item>
-                  <ion-textarea label="설명" label-placement="stacked" v-model="form.description" :auto-grow="true" />
+                  <ion-textarea :label="tr('설명', 'Description')" label-placement="stacked" v-model="form.description" :auto-grow="true" />
                 </ion-item>
                 <ion-item>
                   <ion-select
-                    label="카테고리"
+                    :label="tr('카테고리', 'Category')"
                     label-placement="stacked"
                     v-model="form.categoryId"
-                    placeholder="선택 안 함"
+                    :placeholder="tr('선택 안 함', 'None')"
                   >
-                    <ion-select-option :value="null">선택 안 함</ion-select-option>
+                    <ion-select-option :value="null">{{ tr('선택 안 함', 'None') }}</ion-select-option>
                     <ion-select-option v-for="c in categories" :key="c.id" :value="c.id">
                       {{ c.name }}
                     </ion-select-option>
@@ -840,11 +862,11 @@ onIonViewWillEnter(load)
                 </ion-item>
                 <ion-item>
                   <ion-select
-                    label="태그"
+                    :label="tr('태그', 'Tags')"
                     label-placement="stacked"
                     :multiple="true"
                     v-model="form.tagIds"
-                    placeholder="선택 안 함"
+                    :placeholder="tr('선택 안 함', 'None')"
                   >
                     <ion-select-option v-for="t in tags" :key="t.id" :value="t.id">
                       {{ t.name }}
@@ -858,12 +880,12 @@ onIonViewWillEnter(load)
 
         <div v-if="homes.length > 0" class="ion-padding">
           <ion-button expand="block" :disabled="saving" @click="save('view')">
-            {{ saving ? '저장 중...' : isEdit ? '수정 완료' : '등록하기' }}
+            {{ saving ? tr('저장 중...', 'Saving...') : isEdit ? tr('수정 완료', 'Save changes') : tr('등록하기', 'Add item') }}
           </ion-button>
           <!-- 같은 보관 위치의 물건을 연달아 등록: 저장 후 바로 다음 사진을 찍는다 -->
           <ion-button v-if="!isEdit" expand="block" fill="outline" :disabled="saving" @click="save('continue')">
             <ion-icon slot="start" :icon="cameraOutline" />
-            저장하고 계속 등록
+            {{ tr('저장하고 계속 등록', 'Save and add another') }}
           </ion-button>
         </div>
       </template>
@@ -875,15 +897,15 @@ onIonViewWillEnter(load)
         <h3 class="date-title">{{ datePickerLabel }}</h3>
         <ion-datetime
           presentation="date"
-          locale="ko-KR"
+          :locale="uiLocale"
           :value="datePicker.value"
           @ion-change="onDatePicked($event.detail.value)"
         />
         <div class="date-actions">
-          <ion-button v-if="form[datePicker.key]" fill="clear" color="medium" @click="clearDate">지우기</ion-button>
+          <ion-button v-if="form[datePicker.key]" fill="clear" color="medium" @click="clearDate">{{ tr('지우기', 'Clear') }}</ion-button>
           <span class="date-spacer" />
-          <ion-button fill="clear" @click="datePicker = null">취소</ion-button>
-          <ion-button @click="confirmDate">입력</ion-button>
+          <ion-button fill="clear" @click="datePicker = null">{{ tr('취소', 'Cancel') }}</ion-button>
+          <ion-button @click="confirmDate">{{ tr('입력', 'Set') }}</ion-button>
         </div>
       </div>
     </ion-modal>

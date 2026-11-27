@@ -6,6 +6,7 @@ import App from './App.vue'
 import router from './router'
 import { startOta } from './services/ota'
 import { setupServiceWorker } from './services/serviceWorker'
+import { lang, tr } from './i18n'
 
 /* Ionic 필수 CSS */
 import '@ionic/vue/css/core.css'
@@ -18,6 +19,10 @@ import '@ionic/vue/css/text-alignment.css'
 
 /* 테마 변수 */
 import './theme/variables.css'
+
+// 화면 언어(기기 언어가 한국어가 아니면 영어)를 문서에도 알린다. 화면 읽기 기능과 브라우저 탭 제목에 쓰인다.
+document.documentElement.lang = lang
+document.title = tr('집안의모든것', 'Home Items')
 
 const app = createApp(App).use(IonicVue).use(createPinia()).use(router)
 

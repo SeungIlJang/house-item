@@ -1,4 +1,5 @@
 // 유통기한 날짜 계산. 모두 사용자 기기의 현지 날짜 기준이다(서버는 UTC).
+import { tr } from '@/i18n'
 
 export function toLocalDateString(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -30,8 +31,8 @@ export function daysUntil(expirationDate: string, from: Date = new Date()): numb
 }
 
 export function expiryLabel(days: number): string {
-  if (days < 0) return `${-days}일 지남`
-  if (days === 0) return '오늘 만료'
+  if (days < 0) return tr(`${-days}일 지남`, `${-days}d overdue`)
+  if (days === 0) return tr('오늘 만료', 'Expires today')
   return `D-${days}`
 }
 
@@ -72,8 +73,10 @@ export function planReminders(items: ReminderItem[], daysBefore: number, hour: n
       id: REMINDER_ID_BASE + item.id,
       itemId: item.id,
       at,
-      title: item.name || '이름 없는 물건',
-      body: days === 0 ? `오늘이 유통기한이에요 (${item.expirationDate})` : `유통기한이 ${days}일 남았어요 (${item.expirationDate})`,
+      title: item.name || tr('이름 없는 물건', 'Unnamed item'),
+      body: days === 0
+        ? tr(`오늘이 유통기한이에요 (${item.expirationDate})`, `Expires today (${item.expirationDate})`)
+        : tr(`유통기한이 ${days}일 남았어요 (${item.expirationDate})`, `Expires in ${days} ${days === 1 ? 'day' : 'days'} (${item.expirationDate})`),
     })
   }
   return plans.sort((a, b) => a.at.getTime() - b.at.getTime()).slice(0, MAX_REMINDERS)

@@ -26,6 +26,7 @@ import { homeApi } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type { Home } from '@/types/api'
+import { tr } from '@/i18n'
 
 const router = useRouter()
 const toast = useToast()
@@ -46,12 +47,12 @@ async function load() {
 
 async function promptCreate() {
   const alert = await alertController.create({
-    header: '집 등록',
-    inputs: [{ name: 'name', placeholder: '집 이름 (예: 우리 집)' }],
+    header: tr('집 등록', 'Add home'),
+    inputs: [{ name: 'name', placeholder: tr('집 이름 (예: 우리 집)', 'Home name (e.g. My home)') }],
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '등록',
+        text: tr('등록', 'Add'),
         handler: async (data) => {
           if (!data.name?.trim()) return
           try {
@@ -69,12 +70,12 @@ async function promptCreate() {
 
 async function promptEdit(home: Home) {
   const alert = await alertController.create({
-    header: '집 수정',
+    header: tr('집 수정', 'Edit home'),
     inputs: [{ name: 'name', value: home.name }],
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '저장',
+        text: tr('저장', 'Save'),
         handler: async (data) => {
           if (!data.name?.trim()) return
           try {
@@ -92,12 +93,15 @@ async function promptEdit(home: Home) {
 
 async function confirmDelete(home: Home) {
   const alert = await alertController.create({
-    header: '집 삭제',
-    message: `'${home.name}'을 삭제하면 보관장소·수납공간·해당 물건도 함께 삭제됩니다.`,
+    header: tr('집 삭제', 'Delete home'),
+    message: tr(
+      `'${home.name}'을 삭제하면 보관장소·수납공간·해당 물건도 함께 삭제됩니다.`,
+      `Deleting '${home.name}' also deletes its places, storage spots and items.`,
+    ),
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '삭제',
+        text: tr('삭제', 'Delete'),
         role: 'destructive',
         handler: async () => {
           try {
@@ -123,7 +127,7 @@ onIonViewWillEnter(load)
         <ion-buttons slot="start">
           <ion-back-button default-href="/tabs/profile" />
         </ion-buttons>
-        <ion-title>보관 장소 관리</ion-title>
+        <ion-title>{{ tr('보관 장소 관리', 'Manage places') }}</ion-title>
         <ion-buttons slot="end">
           <ion-button @click="promptCreate">
             <ion-icon slot="icon-only" :icon="addOutline" />
@@ -135,8 +139,8 @@ onIonViewWillEnter(load)
       <div v-if="loading" class="center"><ion-spinner /></div>
       <template v-else>
         <div v-if="homes.length === 0" class="empty">
-          <p>등록된 집이 없어요.</p>
-          <ion-button @click="promptCreate">집 등록하기</ion-button>
+          <p>{{ tr('등록된 집이 없어요.', 'No homes yet.') }}</p>
+          <ion-button @click="promptCreate">{{ tr('집 등록하기', 'Add a home') }}</ion-button>
         </div>
         <ion-list v-else>
           <ion-item-sliding v-for="h in homes" :key="h.id">
@@ -148,12 +152,12 @@ onIonViewWillEnter(load)
               <ion-icon slot="end" :icon="chevronForward" />
             </ion-item>
             <ion-item-options side="end">
-              <ion-item-option @click="promptEdit(h)">수정</ion-item-option>
-              <ion-item-option color="danger" @click="confirmDelete(h)">삭제</ion-item-option>
+              <ion-item-option @click="promptEdit(h)">{{ tr('수정', 'Edit') }}</ion-item-option>
+              <ion-item-option color="danger" @click="confirmDelete(h)">{{ tr('삭제', 'Delete') }}</ion-item-option>
             </ion-item-options>
           </ion-item-sliding>
         </ion-list>
-        <p class="hint">항목을 왼쪽으로 밀면 수정/삭제할 수 있어요.</p>
+        <p class="hint">{{ tr('항목을 왼쪽으로 밀면 수정/삭제할 수 있어요.', 'Swipe a row left to edit or delete it.') }}</p>
       </template>
     </ion-content>
   </ion-page>

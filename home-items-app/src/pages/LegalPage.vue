@@ -7,6 +7,7 @@ import { IonPage, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonIco
 import { arrowBackOutline } from 'ionicons/icons'
 import { getToken } from '@/api/client'
 import { DOCUMENTS } from '@/legal/documents'
+import { tr } from '@/i18n'
 
 const route = useRoute()
 const ionRouter = useIonRouter()
@@ -25,7 +26,7 @@ function goBack() {
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-button aria-label="뒤로" @click="goBack">
+          <ion-button :aria-label="tr('뒤로', 'Back')" @click="goBack">
             <ion-icon slot="icon-only" :icon="arrowBackOutline" />
           </ion-button>
         </ion-buttons>

@@ -24,6 +24,7 @@ import ItemCard from '@/components/ItemCard.vue'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type { Category, Item } from '@/types/api'
+import { tr, plural } from '@/i18n'
 
 const route = useRoute()
 const toast = useToast()
@@ -112,9 +113,9 @@ onIonViewWillEnter(async () => {
   <ion-page>
     <ion-header>
       <ion-toolbar>
-        <ion-title>찾기</ion-title>
+        <ion-title>{{ tr('찾기', 'Search') }}</ion-title>
         <ion-buttons slot="end">
-          <ion-button :aria-label="viewMode === 'list' ? '사진으로 보기' : '목록으로 보기'" @click="toggleView">
+          <ion-button :aria-label="viewMode === 'list' ? tr('사진으로 보기', 'Photo view') : tr('목록으로 보기', 'List view')" @click="toggleView">
             <ion-icon slot="icon-only" :icon="viewMode === 'list' ? gridOutline : listOutline" />
           </ion-button>
         </ion-buttons>
@@ -124,7 +125,7 @@ onIonViewWillEnter(async () => {
       <div class="ion-padding-horizontal ion-padding-top">
         <ion-searchbar
           v-model="keyword"
-          placeholder="이름, 설명, 메모로 검색"
+          :placeholder="tr('이름, 설명, 메모로 검색', 'Search name, description, note')"
           :debounce="300"
           @ion-input="runSearch"
         />
@@ -144,20 +145,20 @@ onIonViewWillEnter(async () => {
       <div v-if="loading" class="center"><ion-spinner /></div>
 
       <template v-else>
-        <p class="count">검색 결과 {{ total }}건</p>
-        <div v-if="items.length === 0" class="empty">조건에 맞는 물건이 없어요.</div>
+        <p class="count">{{ tr(`검색 결과 ${total}건`, plural(total, 'result')) }}</p>
+        <div v-if="items.length === 0" class="empty">{{ tr('조건에 맞는 물건이 없어요.', 'No matching items.') }}</div>
         <div v-else-if="viewMode === 'grid'" class="photo-grid">
           <router-link v-for="item in items" :key="item.id" :to="`/items/${item.id}`" class="photo-cell">
-            <img v-if="item.thumbnailUrl" :src="imageUrl(item.thumbnailUrl)" :alt="item.name || '물건 사진'" loading="lazy" />
+            <img v-if="item.thumbnailUrl" :src="imageUrl(item.thumbnailUrl)" :alt="item.name || tr('물건 사진', 'Item photo')" loading="lazy" />
             <div v-else class="photo-empty">📦</div>
-            <span class="photo-caption">{{ item.name || item.storageFullPath || item.roomName || '이름 없음' }}</span>
+            <span class="photo-caption">{{ item.name || item.storageFullPath || item.roomName || tr('이름 없음', 'No name') }}</span>
           </router-link>
         </div>
         <div v-else class="ion-padding-horizontal">
           <ItemCard v-for="item in items" :key="item.id" :item="item" />
         </div>
         <ion-infinite-scroll :disabled="!hasMore" @ion-infinite="loadMore">
-          <ion-infinite-scroll-content loading-text="더 불러오는 중..." />
+          <ion-infinite-scroll-content :loading-text="tr('더 불러오는 중...', 'Loading more...')" />
         </ion-infinite-scroll>
       </template>
     </ion-content>

@@ -9,6 +9,7 @@ import { syncExpiryReminders } from '@/services/expiryReminder'
 import { refreshItemCount } from '@/services/itemCount'
 import { daysUntil, toLocalDateString } from '@/utils/expiry'
 import type { Item, ItemPayload } from '@/types/api'
+import { tr } from '@/i18n'
 
 export const isExpired = (item: Pick<Item, 'expirationDate'>) => !!item.expirationDate && daysUntil(item.expirationDate) < 0
 
@@ -44,7 +45,7 @@ async function confirm(header: string, message: string, okText: string): Promise
     header,
     message,
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       { text: okText, role: 'confirm' },
     ],
   })
@@ -56,12 +57,12 @@ async function confirm(header: string, message: string, okText: string): Promise
 async function askNewDate(): Promise<string | null> {
   const today = toLocalDateString(new Date())
   const alert = await alertController.create({
-    header: '새 유통기한',
-    message: '새로 산 물건의 유통기한을 골라 주세요.',
+    header: tr('새 유통기한', 'New expiry date'),
+    message: tr('새로 산 물건의 유통기한을 골라 주세요.', 'Pick the expiry date of the new one.'),
     inputs: [{ name: 'date', type: 'date', min: today }],
     buttons: [
-      { text: '취소', role: 'cancel' },
-      { text: '저장', role: 'confirm' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
+      { text: tr('저장', 'Save'), role: 'confirm' },
     ],
   })
   await alert.present()
@@ -69,7 +70,7 @@ async function askNewDate(): Promise<string | null> {
   if (role !== 'confirm') return null
   const value = String(data?.values?.date ?? '')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value < today) {
-    await toast('오늘 이후의 날짜를 골라 주세요.', 'danger')
+    await toast(tr('오늘 이후의 날짜를 골라 주세요.', 'Pick today or a later date.'), 'danger')
     return null
   }
   return value
@@ -78,12 +79,12 @@ async function askNewDate(): Promise<string | null> {
 /** 선택 창을 띄우고 고른 동작을 실행한다. */
 export async function handleExpiredItem(item: Item): Promise<ExpiredResult> {
   const sheet = await actionSheetController.create({
-    header: `${item.name || '이름 없는 물건'} · 유통기한이 지났어요`,
+    header: tr(`${item.name || '이름 없는 물건'} · 유통기한이 지났어요`, `${item.name || 'Unnamed item'} · Expired`),
     buttons: [
-      { text: '다 썼어요 / 버렸어요 (물건 삭제)', role: 'destructive', data: 'delete' },
-      { text: '새로 샀어요 (유통기한 변경)', data: 'renew' },
-      { text: '유통기한 지우기 (물건은 유지)', data: 'clear' },
-      { text: '취소', role: 'cancel' },
+      { text: tr('다 썼어요 / 버렸어요 (물건 삭제)', 'Used up / thrown away (delete item)'), role: 'destructive', data: 'delete' },
+      { text: tr('새로 샀어요 (유통기한 변경)', 'Bought a new one (change expiry date)'), data: 'renew' },
+      { text: tr('유통기한 지우기 (물건은 유지)', 'Clear expiry date (keep item)'), data: 'clear' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
     ],
   })
   await sheet.present()
@@ -91,11 +92,11 @@ export async function handleExpiredItem(item: Item): Promise<ExpiredResult> {
 
   try {
     if (action === 'delete') {
-      if (!(await confirm('물건 삭제', '이 물건과 사진을 삭제할까요? 되돌릴 수 없습니다.', '삭제'))) return null
+      if (!(await confirm(tr('물건 삭제', 'Delete item'), tr('이 물건과 사진을 삭제할까요? 되돌릴 수 없습니다.', 'Delete this item and its photos? This cannot be undone.'), tr('삭제', 'Delete')))) return null
       await itemApi.remove(item.id)
       void syncExpiryReminders()
       void refreshItemCount()
-      await toast('삭제되었습니다.', 'success')
+      await toast(tr('삭제되었습니다.', 'Deleted.'), 'success')
       return { kind: 'deleted' }
     }
     if (action === 'renew') {
@@ -104,13 +105,13 @@ export async function handleExpiredItem(item: Item): Promise<ExpiredResult> {
       // 구매일을 적어 둔 물건이면 새로 산 날(오늘)로 바꾼다. 적지 않았으면 그대로 비워 둔다.
       const updated = await saveDates(item, date, item.purchaseDate ? toLocalDateString(new Date()) : null)
       void syncExpiryReminders()
-      await toast('유통기한을 바꿨어요.', 'success')
+      await toast(tr('유통기한을 바꿨어요.', 'Expiry date updated.'), 'success')
       return { kind: 'updated', item: updated }
     }
     if (action === 'clear') {
       const updated = await saveDates(item, null, item.purchaseDate)
       void syncExpiryReminders()
-      await toast('유통기한을 지웠어요.', 'success')
+      await toast(tr('유통기한을 지웠어요.', 'Expiry date cleared.'), 'success')
       return { kind: 'updated', item: updated }
     }
   } catch (e) {

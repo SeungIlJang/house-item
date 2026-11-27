@@ -26,6 +26,7 @@ import { roomApi, storageApi } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type { StorageTreeNode } from '@/types/api'
+import { tr } from '@/i18n'
 
 interface FlatNode {
   id: number
@@ -69,11 +70,11 @@ async function load() {
 async function promptCreate(parentId: number | null, headerText: string) {
   const alert = await alertController.create({
     header: headerText,
-    inputs: [{ name: 'name', placeholder: '이름 (예: 붙박이장, 두 번째 서랍)' }],
+    inputs: [{ name: 'name', placeholder: tr('이름 (예: 붙박이장, 두 번째 서랍)', 'Name (e.g. Closet, Second drawer)') }],
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '등록',
+        text: tr('등록', 'Add'),
         handler: async (data) => {
           if (!data.name?.trim()) return
           try {
@@ -91,12 +92,12 @@ async function promptCreate(parentId: number | null, headerText: string) {
 
 async function promptEdit(node: FlatNode) {
   const alert = await alertController.create({
-    header: '수납공간 수정',
+    header: tr('수납공간 수정', 'Edit storage spot'),
     inputs: [{ name: 'name', value: node.name }],
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '저장',
+        text: tr('저장', 'Save'),
         handler: async (data) => {
           if (!data.name?.trim()) return
           try {
@@ -115,12 +116,15 @@ async function promptEdit(node: FlatNode) {
 
 async function confirmDelete(node: FlatNode) {
   const alert = await alertController.create({
-    header: '수납공간 삭제',
-    message: `'${node.name}'과 그 하위 수납공간이 함께 삭제됩니다.`,
+    header: tr('수납공간 삭제', 'Delete storage spot'),
+    message: tr(
+      `'${node.name}'과 그 하위 수납공간이 함께 삭제됩니다.`,
+      `'${node.name}' and the storage spots inside it will be deleted.`,
+    ),
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '삭제',
+        text: tr('삭제', 'Delete'),
         role: 'destructive',
         handler: async () => {
           try {
@@ -145,9 +149,9 @@ onIonViewWillEnter(load)
         <ion-buttons slot="start">
           <ion-back-button default-href="/places" />
         </ion-buttons>
-        <ion-title>{{ roomName || '수납공간' }}</ion-title>
+        <ion-title>{{ roomName || tr('수납공간', 'Storage spots') }}</ion-title>
         <ion-buttons slot="end">
-          <ion-button @click="promptCreate(null, '수납공간 등록')">
+          <ion-button @click="promptCreate(null, tr('수납공간 등록', 'Add storage spot'))">
             <ion-icon slot="icon-only" :icon="addOutline" />
           </ion-button>
         </ion-buttons>
@@ -157,8 +161,8 @@ onIonViewWillEnter(load)
       <div v-if="loading" class="center"><ion-spinner /></div>
       <template v-else>
         <div v-if="nodes.length === 0" class="empty">
-          <p>수납공간이 없어요. 붙박이장, 서랍 등을 추가해보세요.</p>
-          <ion-button @click="promptCreate(null, '수납공간 등록')">추가하기</ion-button>
+          <p>{{ tr('수납공간이 없어요. 붙박이장, 서랍 등을 추가해보세요.', 'No storage spots yet. Add a closet, a drawer and more.') }}</p>
+          <ion-button @click="promptCreate(null, tr('수납공간 등록', 'Add storage spot'))">{{ tr('추가하기', 'Add') }}</ion-button>
         </div>
         <ion-list v-else>
           <ion-item-sliding v-for="n in nodes" :key="n.id">
@@ -169,18 +173,18 @@ onIonViewWillEnter(load)
               <ion-button
                 slot="end"
                 fill="clear"
-                @click="promptCreate(n.id, `'${n.name}' 하위 추가`)"
+                @click="promptCreate(n.id, tr(`'${n.name}' 하위 추가`, `Add inside '${n.name}'`))"
               >
                 <ion-icon slot="icon-only" :icon="addCircleOutline" />
               </ion-button>
             </ion-item>
             <ion-item-options side="end">
-              <ion-item-option @click="promptEdit(n)">수정</ion-item-option>
-              <ion-item-option color="danger" @click="confirmDelete(n)">삭제</ion-item-option>
+              <ion-item-option @click="promptEdit(n)">{{ tr('수정', 'Edit') }}</ion-item-option>
+              <ion-item-option color="danger" @click="confirmDelete(n)">{{ tr('삭제', 'Delete') }}</ion-item-option>
             </ion-item-options>
           </ion-item-sliding>
         </ion-list>
-        <p class="hint">＋ 아이콘으로 하위 수납공간을 추가할 수 있어요.</p>
+        <p class="hint">{{ tr('＋ 아이콘으로 하위 수납공간을 추가할 수 있어요.', 'Tap the ＋ icon to add a storage spot inside another.') }}</p>
       </template>
     </ion-content>
   </ion-page>

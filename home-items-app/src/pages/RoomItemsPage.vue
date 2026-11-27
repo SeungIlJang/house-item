@@ -25,6 +25,7 @@ import { itemApi, roomApi, storageApi, imageUrl } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import type { Item, StorageTreeNode } from '@/types/api'
+import { tr, plural } from '@/i18n'
 
 const PAGE_SIZE = 30
 
@@ -98,7 +99,7 @@ function goBack() {
 }
 
 // 이름이 없으면 수납 위치의 마지막 단계를 보여 준다(방 이름은 이미 제목에 있다).
-const caption = (item: Item) => item.name || item.storageFullPath?.split(' > ').pop() || '이름 없음'
+const caption = (item: Item) => item.name || item.storageFullPath?.split(' > ').pop() || tr('이름 없음', 'No name')
 
 onIonViewWillEnter(async () => {
   try {
@@ -118,11 +119,11 @@ onIonViewWillEnter(async () => {
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-button aria-label="뒤로" @click="goBack">
+          <ion-button :aria-label="tr('뒤로', 'Back')" @click="goBack">
             <ion-icon slot="icon-only" :icon="arrowBackOutline" />
           </ion-button>
         </ion-buttons>
-        <ion-title>{{ roomName || '내 물건' }}</ion-title>
+        <ion-title>{{ roomName || tr('내 물건', 'My items') }}</ion-title>
       </ion-toolbar>
     </ion-header>
     <ion-content>
@@ -141,8 +142,8 @@ onIonViewWillEnter(async () => {
       <div v-if="loading" class="center"><ion-spinner /></div>
 
       <template v-else>
-        <p class="count">물건 {{ total }}개</p>
-        <div v-if="items.length === 0" class="empty">여기에 보관한 물건이 없어요.</div>
+        <p class="count">{{ tr(`물건 ${total}개`, plural(total, 'item')) }}</p>
+        <div v-if="items.length === 0" class="empty">{{ tr('여기에 보관한 물건이 없어요.', 'No items stored here.') }}</div>
         <div v-else class="photo-grid">
           <router-link v-for="item in items" :key="item.id" :to="`/items/${item.id}`" class="photo-cell">
             <img v-if="item.thumbnailUrl" :src="imageUrl(item.thumbnailUrl)" :alt="caption(item)" loading="lazy" />
@@ -151,7 +152,7 @@ onIonViewWillEnter(async () => {
           </router-link>
         </div>
         <ion-infinite-scroll :disabled="!hasMore" @ion-infinite="loadMore">
-          <ion-infinite-scroll-content loading-text="더 불러오는 중..." />
+          <ion-infinite-scroll-content :loading-text="tr('더 불러오는 중...', 'Loading more...')" />
         </ion-infinite-scroll>
       </template>
     </ion-content>

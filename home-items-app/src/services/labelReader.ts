@@ -5,6 +5,7 @@
 // 읽은 값은 저장하지 않고 화면의 빈 칸에만 채우며, 사용자가 확인하고 고칠 수 있다.
 import { visionApi, type LabelRead } from '@/api'
 import { compressImage } from '@/services/imageCompress'
+import { isKorean } from '@/i18n'
 
 /** 읽기용 사진의 긴 변. 날짜 각인을 읽기에 충분하고, 전송량과 AI 사용량을 줄인다. */
 const READ_MAX_SIDE = 1024
@@ -25,8 +26,10 @@ export async function readLabel(file: File): Promise<LabelRead | null> {
   }
 }
 
-/** 'YYYY-MM-DD' → '2026년 11월 23일' */
+/** 'YYYY-MM-DD' → '2026년 11월 23일' (영어 화면에서는 'Nov 23, 2026') */
 export function formatKoreanDate(date: string): string {
   const [y, m, d] = date.split('-').map(Number)
-  return `${y}년 ${m}월 ${d}일`
+  if (isKorean) return `${y}년 ${m}월 ${d}일`
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  return `${MONTHS[m - 1]} ${d}, ${y}`
 }

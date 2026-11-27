@@ -22,6 +22,7 @@ import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
 import { getLastPlace } from '@/services/lastPlace'
 import type { Home, Item, Room } from '@/types/api'
+import { tr, plural } from '@/i18n'
 
 // 보관장소마다 미리 보여 줄 물건 수. 더 있으면 "+N" 칸으로 전체 화면에 간다.
 const PREVIEW_COUNT = 8
@@ -67,12 +68,12 @@ async function load() {
 
 async function changeHome() {
   const alert = await alertController.create({
-    header: '집 선택',
+    header: tr('집 선택', 'Select home'),
     inputs: homes.value.map((h) => ({ type: 'radio' as const, label: h.name, value: h.id, checked: h.id === homeId.value })),
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '선택',
+        text: tr('선택', 'Select'),
         handler: (value: number | undefined) => {
           if (value && value !== homeId.value) {
             homeId.value = value
@@ -85,7 +86,7 @@ async function changeHome() {
   await alert.present()
 }
 
-const caption = (item: Item) => item.name || item.storageFullPath || '이름 없음'
+const caption = (item: Item) => item.name || item.storageFullPath || tr('이름 없음', 'No name')
 
 onIonViewWillEnter(load)
 </script>
@@ -94,7 +95,7 @@ onIonViewWillEnter(load)
   <ion-page>
     <ion-header>
       <ion-toolbar>
-        <ion-title>내 물건</ion-title>
+        <ion-title>{{ tr('내 물건', 'My items') }}</ion-title>
         <ion-buttons v-if="homes.length > 1" slot="end">
           <ion-button @click="changeHome">
             {{ homeName }}
@@ -108,27 +109,27 @@ onIonViewWillEnter(load)
 
       <template v-else>
         <div v-if="homes.length === 0" class="empty">
-          <p>아직 등록된 집이 없어요.</p>
-          <ion-button @click="router.push('/places')">보관 장소 만들기</ion-button>
+          <p>{{ tr('아직 등록된 집이 없어요.', 'No homes added yet.') }}</p>
+          <ion-button @click="router.push('/places')">{{ tr('보관 장소 만들기', 'Create a place') }}</ion-button>
         </div>
 
         <div v-else-if="sections.length === 0" class="empty">
-          <p>'{{ homeName }}'에 보관장소가 없어요.</p>
-          <ion-button @click="router.push(`/homes/${homeId}/rooms`)">보관장소 추가</ion-button>
+          <p>{{ tr(`'${homeName}'에 보관장소가 없어요.`, `No places in '${homeName}' yet.`) }}</p>
+          <ion-button @click="router.push(`/homes/${homeId}/rooms`)">{{ tr('보관장소 추가', 'Add place') }}</ion-button>
         </div>
 
         <template v-else>
-          <p class="summary">{{ homeName }} · 물건 {{ totalItems }}개</p>
+          <p class="summary">{{ homeName }} · {{ tr(`물건 ${totalItems}개`, plural(totalItems, 'item')) }}</p>
 
           <div v-if="totalItems === 0" class="empty">
-            <p>아직 보관한 물건이 없어요.</p>
-            <ion-button @click="router.push({ path: '/tabs/add', query: { quick: '1' } })">사진으로 등록</ion-button>
+            <p>{{ tr('아직 보관한 물건이 없어요.', 'No items stored yet.') }}</p>
+            <ion-button @click="router.push({ path: '/tabs/add', query: { quick: '1' } })">{{ tr('사진으로 등록', 'Add by photo') }}</ion-button>
           </div>
 
           <section v-for="s in sections" :key="s.room.id" class="room">
             <button type="button" class="room-head" @click="router.push(`/rooms/${s.room.id}/items`)">
               <span class="room-name">{{ s.room.name }}</span>
-              <span class="room-count">{{ s.total }}개</span>
+              <span class="room-count">{{ tr(`${s.total}개`, plural(s.total, 'item')) }}</span>
               <ion-icon :icon="chevronForward" class="room-arrow" />
             </button>
 

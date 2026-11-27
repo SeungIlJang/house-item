@@ -31,6 +31,7 @@ import { syncExpiryReminders } from '@/services/expiryReminder'
 import { reportItemCount } from '@/services/itemCount'
 import { readDashboardCache, saveDashboardCache, type DashboardData } from '@/services/dashboardCache'
 import { addDays, toLocalDateString } from '@/utils/expiry'
+import { tr, plural } from '@/i18n'
 
 // 홈에 보여 줄 유통기한 임박 기준(오늘부터 7일 안, 이미 지난 것 포함)
 const EXPIRING_DAYS = 7
@@ -47,7 +48,10 @@ const expiringTotal = ref(0)
 // 목록 탭: 최근 등록한 물건 / 유통기한 임박.
 // 유통기한이 임박한 물건이 있으면 그 탭을 첫 번째에 두고 먼저 보여 준다. 없으면 최근 등록이 첫 번째다.
 type ListTab = 'expiry' | 'recent'
-const TAB_LABEL: Record<ListTab, string> = { expiry: '유통기한 임박', recent: '최근 등록한 물건' }
+const TAB_LABEL: Record<ListTab, string> = {
+  expiry: tr('유통기한 임박', 'Expiring soon'),
+  recent: tr('최근 등록한 물건', 'Recently added'),
+}
 const tabOrder = computed<ListTab[]>(() => (expiringTotal.value > 0 ? ['expiry', 'recent'] : ['recent', 'expiry']))
 const activeTab = ref<ListTab>('recent')
 // 사용자가 직접 탭을 고른 뒤에는 화면에 다시 들어와도 그 탭을 유지한다.
@@ -120,13 +124,13 @@ onIonViewWillEnter(load)
   <ion-page>
     <ion-header>
       <ion-toolbar>
-        <ion-title>집안의모든것</ion-title>
+        <ion-title>{{ tr('집안의모든것', 'Home Items') }}</ion-title>
       </ion-toolbar>
     </ion-header>
     <ion-content>
       <div class="ion-padding-horizontal ion-padding-top">
         <ion-searchbar
-          placeholder="물건 이름으로 검색"
+          :placeholder="tr('물건 이름으로 검색', 'Search by item name')"
           :debounce="0"
           search-icon="search"
           @keyup.enter="onSearch"
@@ -144,7 +148,7 @@ onIonViewWillEnter(load)
               <ion-card class="stat-card">
                 <ion-card-content>
                   <div class="stat-value">{{ totalItems }}</div>
-                  <div class="stat-label">전체 물건</div>
+                  <div class="stat-label">{{ tr('전체 물건', 'All items') }}</div>
                 </ion-card-content>
               </ion-card>
             </ion-col>
@@ -152,7 +156,7 @@ onIonViewWillEnter(load)
               <ion-card class="stat-card" button @click="router.push({ path: '/tabs/add', query: { quick: '1' } })">
                 <ion-card-content class="quick-add">
                   <ion-icon :icon="cameraOutline" size="large" color="primary" />
-                  <div class="stat-label">사진으로 등록</div>
+                  <div class="stat-label">{{ tr('사진으로 등록', 'Add by photo') }}</div>
                 </ion-card-content>
               </ion-card>
             </ion-col>
@@ -173,10 +177,12 @@ onIonViewWillEnter(load)
         <!-- 유통기한 임박: 오늘부터 7일 안에 만료되거나 이미 지난 물건, 가까운 순 -->
         <template v-if="activeTab === 'expiry'">
           <div v-if="expiringItems.length === 0" class="empty">
-            <p>7일 안에 유통기한이 임박한 물건이 없어요.</p>
+            <p>{{ tr('7일 안에 유통기한이 임박한 물건이 없어요.', 'No items expiring within 7 days.') }}</p>
           </div>
           <template v-else>
-            <p class="ion-padding-horizontal section-sub">7일 이내 · {{ expiringTotal }}개 (지난 것 포함)</p>
+            <p class="ion-padding-horizontal section-sub">
+              {{ tr(`7일 이내 · ${expiringTotal}개 (지난 것 포함)`, `Within 7 days · ${plural(expiringTotal, 'item')} (incl. expired)`) }}
+            </p>
             <div class="ion-padding-horizontal">
               <ItemCard v-for="item in expiringItems" :key="item.id" :item="item" expired-action @handled="load" />
             </div>
@@ -186,8 +192,8 @@ onIonViewWillEnter(load)
         <!-- 최근 등록한 물건 -->
         <template v-else>
           <div v-if="recentItems.length === 0" class="empty">
-            <p>아직 등록한 물건이 없어요.</p>
-            <ion-button @click="router.push('/tabs/add')">첫 물건 등록하기</ion-button>
+            <p>{{ tr('아직 등록한 물건이 없어요.', 'No items added yet.') }}</p>
+            <ion-button @click="router.push('/tabs/add')">{{ tr('첫 물건 등록하기', 'Add your first item') }}</ion-button>
           </div>
           <div v-else class="ion-padding-horizontal">
             <ItemCard v-for="item in recentItems" :key="item.id" :item="item" />

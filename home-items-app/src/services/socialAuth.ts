@@ -10,37 +10,38 @@
 import { Browser } from '@capacitor/browser'
 import { Capacitor } from '@capacitor/core'
 import { API_BASE_URL } from '@/api/client'
+import { tr } from '@/i18n'
 
 export type SocialProvider = 'google' | 'kakao'
 
 export const PROVIDER_LABEL: Record<SocialProvider, string> = {
   google: 'Google',
-  kakao: '카카오',
+  kakao: tr('카카오', 'Kakao'),
 }
 
 const ERROR_MESSAGE: Record<string, string> = {
-  ACCESS_DENIED: '로그인이 취소되었습니다.',
-  INVALID_STATE: '로그인 요청이 만료되었습니다. 다시 시도해 주세요.',
-  TOKEN_EXCHANGE_FAILED: '로그인 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.',
-  PROVIDER_NOT_CONFIGURED: '아직 준비되지 않은 로그인 방식입니다.',
-  LOGIN_FAILED: '로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+  ACCESS_DENIED: tr('로그인이 취소되었습니다.', 'Sign-in was cancelled.'),
+  INVALID_STATE: tr('로그인 요청이 만료되었습니다. 다시 시도해 주세요.', 'The sign-in request expired. Please try again.'),
+  TOKEN_EXCHANGE_FAILED: tr('로그인 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.', 'Could not complete sign-in. Please try again shortly.'),
+  PROVIDER_NOT_CONFIGURED: tr('아직 준비되지 않은 로그인 방식입니다.', 'This sign-in method is not available yet.'),
+  LOGIN_FAILED: tr('로그인에 실패했습니다. 잠시 후 다시 시도해 주세요.', 'Sign-in failed. Please try again shortly.'),
 }
 
 // 제공자(카카오·구글)가 돌려준 오류 코드별 설명. 서버가 detail 로 넘겨준다.
 const DETAIL_HINT: Record<string, string> = {
-  KOE010: '카카오 앱 인증 정보(Client Secret)가 올바르지 않습니다.',
-  KOE006: '카카오에 등록되지 않은 리다이렉트 URI 입니다.',
-  KOE205: '카카오 동의항목 설정이 필요합니다.',
-  KOE320: '카카오 인가 코드가 만료되었거나 이미 사용되었습니다.',
-  invalid_client: '앱 인증 정보(Client ID/Secret)가 올바르지 않습니다.',
-  redirect_uri_mismatch: '등록되지 않은 리다이렉트 URI 입니다.',
+  KOE010: tr('카카오 앱 인증 정보(Client Secret)가 올바르지 않습니다.', 'The Kakao app credentials (Client Secret) are incorrect.'),
+  KOE006: tr('카카오에 등록되지 않은 리다이렉트 URI 입니다.', 'This redirect URI is not registered with Kakao.'),
+  KOE205: tr('카카오 동의항목 설정이 필요합니다.', 'Kakao consent items need to be configured.'),
+  KOE320: tr('카카오 인가 코드가 만료되었거나 이미 사용되었습니다.', 'The Kakao authorization code expired or was already used.'),
+  invalid_client: tr('앱 인증 정보(Client ID/Secret)가 올바르지 않습니다.', 'The app credentials (Client ID/Secret) are incorrect.'),
+  redirect_uri_mismatch: tr('등록되지 않은 리다이렉트 URI 입니다.', 'This redirect URI is not registered.'),
 }
 
 export class SocialAuthError extends Error {
   readonly code: string
   readonly detail?: string
   constructor(code: string, detail?: string) {
-    super(ERROR_MESSAGE[code] ?? '로그인에 실패했습니다.')
+    super(ERROR_MESSAGE[code] ?? tr('로그인에 실패했습니다.', 'Sign-in failed.'))
     this.code = code
     this.detail = detail
   }
@@ -51,10 +52,10 @@ export function describeLoginError(error: unknown): { title: string; message: st
   if (error instanceof SocialAuthError) {
     const lines = [error.message]
     if (error.detail && DETAIL_HINT[error.detail]) lines.push(DETAIL_HINT[error.detail])
-    lines.push('', `오류 코드: ${error.code}${error.detail ? ` (${error.detail})` : ''}`)
-    return { title: '로그인 실패', message: lines.join('\n') }
+    lines.push('', `${tr('오류 코드', 'Error code')}: ${error.code}${error.detail ? ` (${error.detail})` : ''}`)
+    return { title: tr('로그인 실패', 'Sign-in failed'), message: lines.join('\n') }
   }
-  return { title: '로그인 실패', message: error instanceof Error && error.message ? error.message : '로그인에 실패했습니다.' }
+  return { title: tr('로그인 실패', 'Sign-in failed'), message: error instanceof Error && error.message ? error.message : tr('로그인에 실패했습니다.', 'Sign-in failed.') }
 }
 
 const LOGIN_STATE_KEY = 'home_items_login_state'

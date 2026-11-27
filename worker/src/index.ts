@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import type { AppEnv } from './types.ts'
 import { ApiError, fail, ok } from './lib/http.ts'
 import { verifyToken } from './lib/jwt.ts'
+import { requestLang, toEnglish } from './lib/i18n.ts'
 import { registerAuthRoutes } from './routes/auth.ts'
 import { registerUserRoutes } from './routes/users.ts'
 import { registerHomeRoutes } from './routes/homes.ts'
@@ -22,6 +23,20 @@ app.use('*', async (c, next) => cors({
   // 같은 주소의 다음 요청부터는 바로 보내게 한다(브라우저마다 상한이 있다. 크롬·안드로이드 WebView 는 2시간).
   maxAge: 86400,
 })(c, next))
+
+// 서버 문구는 한국어로 쓴다. 영어 화면(Accept-Language 가 한국어가 아님)에는 내보내기 직전에 영어로 바꾼다(lib/i18n.ts).
+// 문구는 오류 응답에만 실리므로(탈퇴 완료만 예외) 정상 응답은 건드리지 않아 느려지지 않는다.
+app.use('*', async (c, next) => {
+  await next()
+  if (requestLang(c.req.header('Accept-Language')) === 'ko') return
+  const isAccountDeletion = c.req.method === 'DELETE' && c.req.path === '/api/v1/users/me'
+  if (c.res.status < 400 && !isAccountDeletion) return
+  if (!c.res.headers.get('Content-Type')?.includes('application/json')) return
+  const status = c.res.status
+  const body = await c.res.clone().json<{ message?: unknown }>().catch(() => null)
+  if (!body || typeof body.message !== 'string') return
+  c.res = c.json({ ...body, message: toEnglish(body.message) }, status as 400)
+})
 
 app.use('/api/v1/*', async (c, next) => {
   if (c.req.path.startsWith('/api/v1/auth/')) return next()

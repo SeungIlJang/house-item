@@ -31,6 +31,7 @@ test('native login binds callbacks to the initiating app, ignores unrelated link
     .replace("import { Browser } from '@capacitor/browser'", 'const { Browser } = globalThis.__authMocks')
     .replace("import { Capacitor } from '@capacitor/core'", 'const { Capacitor } = globalThis.__authMocks')
     .replace("import { API_BASE_URL } from '@/api/client'", "const API_BASE_URL = 'https://api.example/api/v1'")
+    .replace("import { tr } from '@/i18n'", 'const tr = (ko) => ko')
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
   const auth = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`)
   const result = auth.signInWith('google')

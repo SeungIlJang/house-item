@@ -5,6 +5,7 @@ import { computed } from 'vue'
 import type { Item } from '@/types/api'
 import { daysUntil, expiryLabel, expiryTone } from '@/utils/expiry'
 import { handleExpiredItem, isExpired } from '@/services/expiredActions'
+import { tr } from '@/i18n'
 
 // expiredAction: 유통기한이 지난 물건에 [처리] 버튼을 붙인다(홈의 유통기한 임박 목록에서만 켠다).
 const props = defineProps<{ item: Item; expiredAction?: boolean }>()
@@ -25,12 +26,12 @@ const expiryDays = computed(() => (props.item.expirationDate ? daysUntil(props.i
         <div v-else class="thumb-placeholder">📦</div>
       </ion-thumbnail>
       <div class="info">
-        <div class="name">{{ item.name || '(이름 없음)' }}</div>
+        <div class="name">{{ item.name || tr('(이름 없음)', '(No name)') }}</div>
         <div class="meta">
           <ion-chip v-if="item.categoryName" color="primary" class="mini-chip">
             <ion-label>{{ item.categoryName }}</ion-label>
           </ion-chip>
-          <span class="qty">수량 {{ item.quantity }}</span>
+          <span class="qty">{{ tr('수량', 'Qty') }} {{ item.quantity }}</span>
           <ion-chip
             v-if="expiryDays !== null && expiryDays <= 30"
             :color="expiryTone(expiryDays)"
@@ -51,7 +52,7 @@ const expiryDays = computed(() => (props.item.expirationDate ? daysUntil(props.i
         color="danger"
         @click.stop="onHandle"
       >
-        처리
+        {{ tr('처리', 'Handle') }}
       </ion-button>
     </ion-card-content>
   </ion-card>

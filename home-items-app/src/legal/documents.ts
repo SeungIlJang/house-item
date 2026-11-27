@@ -3,6 +3,9 @@
 // ⚠️ 법적 문서다. 출시 전에 운영자가 내용을 직접 검토하고, 아래 OPERATOR 값을 실제 정보로 채워야 한다.
 // 수집 항목이나 저장 위치가 바뀌면(예: 이메일 수집, 다른 클라우드) 이 파일도 함께 고친다.
 
+import { isKorean } from '@/i18n'
+import { englishDocuments } from './documents.en'
+
 export const OPERATOR = {
   serviceName: '집안의모든것',
   // TODO(출시 전): 운영자 이름(또는 상호)과 문의 이메일을 채운다. 비어 있으면 화면에 "준비 중"으로 표시된다.
@@ -19,7 +22,7 @@ const contactLine = () =>
 const operatorLine = () =>
   OPERATOR.name ? `운영자: ${OPERATOR.name}` : '운영자 정보는 준비 중입니다.'
 
-export const DOCUMENTS: Record<'terms' | 'privacy' | 'account-deletion', () => LegalDocument> = {
+const KOREAN_DOCUMENTS: Record<'terms' | 'privacy' | 'account-deletion', () => LegalDocument> = {
   privacy: () => ({
     title: '개인정보 처리방침',
     intro: `${OPERATOR.serviceName}(이하 "서비스")는 이용자의 개인정보를 아래와 같이 처리합니다. 시행일: ${OPERATOR.effectiveDate}`,
@@ -180,3 +183,6 @@ export const DOCUMENTS: Record<'terms' | 'privacy' | 'account-deletion', () => L
     ],
   }),
 }
+
+// 영어 화면에서는 영어판(documents.en.ts)을 보여 준다. 한국어판을 고치면 영어판도 함께 고친다.
+export const DOCUMENTS = isKorean ? KOREAN_DOCUMENTS : englishDocuments(OPERATOR)

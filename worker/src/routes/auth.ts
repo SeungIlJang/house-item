@@ -2,6 +2,7 @@ import type { App, Row } from '../types.ts'
 import { fail } from '../lib/http.ts'
 import { b64url, makeToken } from '../lib/jwt.ts'
 import { createDefaultHome } from '../lib/defaults.ts'
+import { requestLang, type Lang } from '../lib/i18n.ts'
 
 export function registerAuthRoutes(app: App) {
   // ──────────────────────────────────────────────────────────────
@@ -49,7 +50,8 @@ export function registerAuthRoutes(app: App) {
     }
   }
 
-  const fetchProfile = async (provider: ProviderName, accessToken: string): Promise<ProviderProfile> => {
+  // fallbackName: 제공자가 이름을 주지 않았을 때 쓸 이름(가입한 사람의 언어).
+  const fetchProfile = async (provider: ProviderName, accessToken: string, fallbackName: string): Promise<ProviderProfile> => {
     if (provider === 'google') {
       const res = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
         headers: { Authorization: `Bearer ${accessToken}` },
@@ -58,7 +60,7 @@ export function registerAuthRoutes(app: App) {
       const p = await res.json<Row>()
       return {
         providerUserId: String(p.sub),
-        name: p.name || p.given_name || '사용자',
+        name: p.name || p.given_name || fallbackName,
         email: p.email_verified === true ? p.email ?? null : null,
         avatarUrl: p.picture ?? null,
       }
@@ -72,7 +74,7 @@ export function registerAuthRoutes(app: App) {
     const profile = account.profile ?? {}
     return {
       providerUserId: String(p.id),
-      name: profile.nickname || '사용자',
+      name: profile.nickname || fallbackName,
       // 이메일은 동의항목 심사를 통과하고 사용자가 동의했을 때만 내려온다.
       email: account.is_email_valid === true && account.is_email_verified === true ? account.email ?? null : null,
       avatarUrl: profile.profile_image_url ?? null,
@@ -80,7 +82,7 @@ export function registerAuthRoutes(app: App) {
   }
 
   // 기존 식별자가 있으면 그 계정, 없으면 같은 이메일 계정에 연결, 그것도 없으면 신규 생성.
-  const resolveUser = async (c: any, provider: ProviderName, profile: ProviderProfile) => {
+  const resolveUser = async (c: any, provider: ProviderName, profile: ProviderProfile, lang: Lang) => {
     const identity = await c.env.DB
       .prepare('SELECT user_id FROM auth_identities WHERE provider=? AND provider_user_id=?')
       .bind(provider, profile.providerUserId).first() as Row | null
@@ -100,7 +102,7 @@ export function registerAuthRoutes(app: App) {
         .bind(profile.email, profile.name, profile.avatarUrl).run()
       userId = Number(created.meta.last_row_id)
       // 가입 직후 바로 물건을 등록할 수 있도록 기본 집과 보관장소를 만든다. 실패해도 로그인은 계속한다.
-      await createDefaultHome(c.env.DB, userId).catch((error) => console.error('default home failed', (error as Error)?.message))
+      await createDefaultHome(c.env.DB, userId, lang).catch((error) => console.error('default home failed', (error as Error)?.message))
     }
 
     await c.env.DB
@@ -209,8 +211,10 @@ export function registerAuthRoutes(app: App) {
       const token = await tokenRes.json<Row>()
       if (!token.access_token) return appRedirect(c, { error: 'TOKEN_EXCHANGE_FAILED' }, back)
 
-      const profile = await fetchProfile(provider, token.access_token)
-      const userId = await resolveUser(c, provider, profile)
+      // 로그인 창을 연 브라우저의 언어(기기 언어)로 새 사용자의 기본 이름과 기본 집·보관장소를 만든다.
+      const lang = requestLang(c.req.header('Accept-Language'))
+      const profile = await fetchProfile(provider, token.access_token, lang === 'ko' ? '사용자' : 'User')
+      const userId = await resolveUser(c, provider, profile, lang)
       const accessToken = await makeToken(userId, c.env.JWT_SECRET_KEY, true)
       return appRedirect(c, { token: accessToken }, back)
     } catch (error) {

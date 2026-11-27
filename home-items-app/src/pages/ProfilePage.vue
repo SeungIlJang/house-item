@@ -34,12 +34,13 @@ import { authApi } from '@/api'
 import { forgetLastProvider } from '@/services/socialAuth'
 import { extractErrorMessage } from '@/api/client'
 import { useToast } from '@/composables/useToast'
+import { tr, plural } from '@/i18n'
 
 const router = useRouter()
 const auth = useAuthStore()
 const toast = useToast()
 
-const CONFIRM_WORD = '탈퇴'
+const CONFIRM_WORD = tr('탈퇴', 'DELETE')
 
 // 유통기한 알림 설정 (기기 로컬 알림이라 앱에서만 보인다)
 const showReminders = remindersSupported()
@@ -61,16 +62,18 @@ function logout() {
 }
 
 async function deleteAccount() {
-  const loading = await loadingController.create({ message: '탈퇴 처리 중...' })
+  const loading = await loadingController.create({ message: tr('탈퇴 처리 중...', 'Deleting account...') })
   await loading.present()
   try {
     await authApi.deleteAccount()
     forgetLastProvider() // 탈퇴한 계정의 로그인 방식은 더 이상 권하지 않는다.
     auth.logout()
     await router.replace('/login')
-    toast.success('탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.')
+    toast.success(tr('탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.', 'Your account has been deleted. Thank you for using the app.'))
   } catch (e) {
-    toast.error(extractErrorMessage(e, '탈퇴에 실패했습니다. 잠시 후 다시 시도해주세요.'))
+    toast.error(
+      extractErrorMessage(e, tr('탈퇴에 실패했습니다. 잠시 후 다시 시도해주세요.', "Couldn't delete your account. Please try again later.")),
+    )
   } finally {
     await loading.dismiss()
   }
@@ -79,17 +82,20 @@ async function deleteAccount() {
 // 되돌릴 수 없는 작업이라 확인 단어를 직접 입력하게 한다.
 async function confirmDeleteAccount() {
   const alert = await alertController.create({
-    header: '회원 탈퇴',
-    message: `등록한 집·보관장소·물건·사진이 모두 삭제되며 되돌릴 수 없습니다. 계속하려면 '${CONFIRM_WORD}'를 입력하세요.`,
+    header: tr('회원 탈퇴', 'Delete account'),
+    message: tr(
+      `등록한 집·보관장소·물건·사진이 모두 삭제되며 되돌릴 수 없습니다. 계속하려면 '${CONFIRM_WORD}'를 입력하세요.`,
+      `All your homes, places, items and photos will be deleted and this cannot be undone. Type '${CONFIRM_WORD}' to continue.`,
+    ),
     inputs: [{ name: 'confirm', placeholder: CONFIRM_WORD }],
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '탈퇴하기',
+        text: tr('탈퇴하기', 'Delete account'),
         role: 'destructive',
         handler: (data) => {
-          if (data.confirm?.trim() !== CONFIRM_WORD) {
-            toast.error(`'${CONFIRM_WORD}'를 정확히 입력해주세요.`)
+          if (data.confirm?.trim().toUpperCase() !== CONFIRM_WORD) { // 영어 단어는 대소문자를 가리지 않는다
+            toast.error(tr(`'${CONFIRM_WORD}'를 정확히 입력해주세요.`, `Please type '${CONFIRM_WORD}' exactly.`))
             return false
           }
           deleteAccount()
@@ -106,13 +112,13 @@ async function confirmDeleteAccount() {
   <ion-page>
     <ion-header>
       <ion-toolbar>
-        <ion-title>내 정보</ion-title>
+        <ion-title>{{ tr('내 정보', 'Profile') }}</ion-title>
       </ion-toolbar>
     </ion-header>
     <ion-content>
       <div class="profile ion-padding">
         <div class="avatar">{{ auth.user?.name?.[0] ?? '👤' }}</div>
-        <h2>{{ auth.user?.name ?? '사용자' }}</h2>
+        <h2>{{ auth.user?.name ?? tr('사용자', 'User') }}</h2>
         <p class="email">{{ auth.user?.email }}</p>
       </div>
 
@@ -120,37 +126,37 @@ async function confirmDeleteAccount() {
         <ion-item button detail @click="router.push('/places')">
           <ion-icon slot="start" :icon="homeOutline" />
           <ion-label>
-            보관 장소 관리
-            <p>집 · 보관장소 · 수납공간 추가와 수정</p>
+            {{ tr('보관 장소 관리', 'Manage places') }}
+            <p>{{ tr('집 · 보관장소 · 수납공간 추가와 수정', 'Add and edit homes, places and storage spots') }}</p>
           </ion-label>
         </ion-item>
         <ion-item button @click="router.push('/categories')">
           <ion-icon slot="start" :icon="gridOutline" />
-          <ion-label>카테고리 관리</ion-label>
+          <ion-label>{{ tr('카테고리 관리', 'Manage categories') }}</ion-label>
         </ion-item>
         <ion-item button @click="router.push('/tags')">
           <ion-icon slot="start" :icon="pricetagsOutline" />
-          <ion-label>태그 관리</ion-label>
+          <ion-label>{{ tr('태그 관리', 'Manage tags') }}</ion-label>
         </ion-item>
       </ion-list>
 
       <ion-list>
         <ion-list-header>
-          <ion-label>약관 및 정책</ion-label>
+          <ion-label>{{ tr('약관 및 정책', 'Terms & policies') }}</ion-label>
         </ion-list-header>
         <ion-item button detail @click="router.push('/terms')">
           <ion-icon slot="start" :icon="documentTextOutline" />
-          <ion-label>서비스 이용약관</ion-label>
+          <ion-label>{{ tr('서비스 이용약관', 'Terms of Service') }}</ion-label>
         </ion-item>
         <ion-item button detail @click="router.push('/privacy')">
           <ion-icon slot="start" :icon="shieldCheckmarkOutline" />
-          <ion-label>개인정보 처리방침</ion-label>
+          <ion-label>{{ tr('개인정보 처리방침', 'Privacy Policy') }}</ion-label>
         </ion-item>
       </ion-list>
 
       <ion-list v-if="showReminders">
         <ion-list-header>
-          <ion-label>유통기한 알림</ion-label>
+          <ion-label>{{ tr('유통기한 알림', 'Expiry reminders') }}</ion-label>
         </ion-list-header>
         <ion-item>
           <ion-icon slot="start" :icon="notificationsOutline" />
@@ -158,36 +164,43 @@ async function confirmDeleteAccount() {
             :checked="reminder.enabled"
             @ion-change="updateReminder({ enabled: $event.detail.checked })"
           >
-            알림 받기
+            {{ tr('알림 받기', 'Get reminders') }}
           </ion-toggle>
         </ion-item>
         <ion-item :disabled="!reminder.enabled">
           <ion-icon slot="start" :icon="timeOutline" />
           <ion-select
-            label="알림 시점"
+            :label="tr('알림 시점', 'Remind me')"
             interface="popover"
             :value="reminder.daysBefore"
             @ion-change="updateReminder({ daysBefore: Number($event.detail.value) })"
           >
-            <ion-select-option :value="1">1일 전</ion-select-option>
-            <ion-select-option :value="3">3일 전</ion-select-option>
-            <ion-select-option :value="7">7일 전</ion-select-option>
-            <ion-select-option :value="14">14일 전</ion-select-option>
+            <ion-select-option :value="1">{{ tr('1일 전', '1 day before') }}</ion-select-option>
+            <ion-select-option :value="3">{{ tr('3일 전', '3 days before') }}</ion-select-option>
+            <ion-select-option :value="7">{{ tr('7일 전', '7 days before') }}</ion-select-option>
+            <ion-select-option :value="14">{{ tr('14일 전', '14 days before') }}</ion-select-option>
           </ion-select>
         </ion-item>
-        <p class="hint ion-padding-horizontal">만료 {{ reminder.daysBefore }}일 전 오전 {{ REMINDER_HOUR }}시에 알려 드려요.</p>
+        <p class="hint ion-padding-horizontal">
+          {{
+            tr(
+              `만료 ${reminder.daysBefore}일 전 오전 ${REMINDER_HOUR}시에 알려 드려요.`,
+              `We'll remind you at ${REMINDER_HOUR} AM, ${plural(reminder.daysBefore, 'day')} before expiry.`,
+            )
+          }}
+        </p>
       </ion-list>
 
       <div class="ion-padding">
         <ion-button expand="block" fill="outline" color="danger" @click="logout">
           <ion-icon slot="start" :icon="logOutOutline" />
-          로그아웃
+          {{ tr('로그아웃', 'Sign out') }}
         </ion-button>
         <ion-button class="delete-account" expand="block" fill="clear" color="medium" size="small" @click="confirmDeleteAccount">
-          회원 탈퇴
+          {{ tr('회원 탈퇴', 'Delete account') }}
         </ion-button>
         <!-- 지금 실행 중인 화면 묶음의 버전. 업데이트가 적용됐는지 확인할 때 본다. -->
-        <p class="app-build">버전 {{ APP_BUILD }}<template v-if="otaLastError()"><br />업데이트 오류: {{ otaLastError() }}</template></p>
+        <p class="app-build">{{ tr('버전', 'Version') }} {{ APP_BUILD }}<template v-if="otaLastError()"><br />{{ tr('업데이트 오류:', 'Update error:') }} {{ otaLastError() }}</template></p>
       </div>
     </ion-content>
   </ion-page>

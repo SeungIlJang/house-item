@@ -36,6 +36,7 @@ import { refreshItemCount } from '@/services/itemCount'
 import { daysUntil, expiryLabel, expiryTone } from '@/utils/expiry'
 import type { Item } from '@/types/api'
 import { handleExpiredItem, isExpired } from '@/services/expiredActions'
+import { tr } from '@/i18n'
 
 const route = useRoute()
 const router = useRouter()
@@ -88,19 +89,19 @@ async function load() {
 
 async function confirmDelete() {
   const alert = await alertController.create({
-    header: '물건 삭제',
-    message: '이 물건을 삭제할까요? 되돌릴 수 없습니다.',
+    header: tr('물건 삭제', 'Delete item'),
+    message: tr('이 물건을 삭제할까요? 되돌릴 수 없습니다.', 'Delete this item? This cannot be undone.'),
     buttons: [
-      { text: '취소', role: 'cancel' },
+      { text: tr('취소', 'Cancel'), role: 'cancel' },
       {
-        text: '삭제',
+        text: tr('삭제', 'Delete'),
         role: 'destructive',
         handler: async () => {
           try {
             await itemApi.remove(Number(route.params.id))
             void syncExpiryReminders()
             void refreshItemCount()
-            toast.success('삭제되었습니다.')
+            toast.success(tr('삭제되었습니다.', 'Deleted.'))
             goBack()
           } catch (e) {
             toast.error(extractErrorMessage(e))
@@ -128,11 +129,11 @@ onIonViewWillEnter(load)
     <ion-header>
       <ion-toolbar>
         <ion-buttons slot="start">
-          <ion-button aria-label="뒤로" @click="goBack">
+          <ion-button :aria-label="tr('뒤로', 'Back')" @click="goBack">
             <ion-icon slot="icon-only" :icon="arrowBackOutline" />
           </ion-button>
         </ion-buttons>
-        <ion-title>물건 상세</ion-title>
+        <ion-title>{{ tr('물건 상세', 'Item details') }}</ion-title>
         <ion-buttons slot="end" v-if="item">
           <ion-button @click="router.push(`/items/${item.id}/edit`)">
             <ion-icon slot="icon-only" :icon="createOutline" />
@@ -145,7 +146,7 @@ onIonViewWillEnter(load)
     </ion-header>
     <ion-content>
       <div v-if="loading" class="center"><ion-spinner /></div>
-      <div v-else-if="!item" class="center">물건을 찾을 수 없습니다.</div>
+      <div v-else-if="!item" class="center">{{ tr('물건을 찾을 수 없습니다.', 'Item not found.') }}</div>
       <template v-else>
         <div v-if="item.images.length" class="gallery">
           <img
@@ -159,7 +160,7 @@ onIonViewWillEnter(load)
         <div v-else class="no-image">📦</div>
 
         <div class="ion-padding">
-          <h1 class="name">{{ item.name || '(이름 없음)' }}</h1>
+          <h1 class="name">{{ item.name || tr('(이름 없음)', '(No name)') }}</h1>
           <div class="chips">
             <ion-chip v-if="item.categoryName" color="primary">
               <ion-label>{{ item.categoryName }}</ion-label>
@@ -173,37 +174,37 @@ onIonViewWillEnter(load)
         <ion-list>
           <ion-item>
             <ion-label>
-              <p>보관 위치</p>
-              <h3>{{ item.storageFullPath || item.roomName || '위치 미지정' }}</h3>
+              <p>{{ tr('보관 위치', 'Location') }}</p>
+              <h3>{{ item.storageFullPath || item.roomName || tr('위치 미지정', 'No location set') }}</h3>
             </ion-label>
           </ion-item>
           <ion-item>
             <ion-label>
-              <p>수량</p>
+              <p>{{ tr('수량', 'Quantity') }}</p>
               <h3>{{ item.quantity }}</h3>
             </ion-label>
           </ion-item>
           <ion-item v-if="item.description">
             <ion-label>
-              <p>설명</p>
+              <p>{{ tr('설명', 'Description') }}</p>
               <h3 class="wrap">{{ item.description }}</h3>
             </ion-label>
           </ion-item>
           <ion-item v-if="item.memo">
             <ion-label>
-              <p>메모</p>
+              <p>{{ tr('메모', 'Note') }}</p>
               <h3 class="wrap">{{ item.memo }}</h3>
             </ion-label>
           </ion-item>
           <ion-item v-if="item.purchaseDate">
             <ion-label>
-              <p>구매일</p>
+              <p>{{ tr('구매일', 'Purchase date') }}</p>
               <h3>{{ item.purchaseDate }}</h3>
             </ion-label>
           </ion-item>
           <ion-item v-if="item.expirationDate">
             <ion-label>
-              <p>유효기간</p>
+              <p>{{ tr('유효기간', 'Expiry date') }}</p>
               <h3>{{ item.expirationDate }}</h3>
             </ion-label>
             <ion-chip slot="end" :color="expiryTone(daysUntil(item.expirationDate))">
@@ -214,7 +215,7 @@ onIonViewWillEnter(load)
 
         <div v-if="isExpired(item)" class="ion-padding">
           <ion-button expand="block" fill="outline" color="danger" @click="onHandleExpired">
-            유통기한 지난 물건 처리
+            {{ tr('유통기한 지난 물건 처리', 'Handle expired item') }}
           </ion-button>
         </div>
       </template>

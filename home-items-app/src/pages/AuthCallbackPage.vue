@@ -7,6 +7,7 @@ import { IonPage, IonContent, IonSpinner } from '@ionic/vue'
 import { useAuthStore } from '@/stores/auth'
 import { showAlert } from '@/composables/useAlert'
 import { SocialAuthError, WEB_CALLBACK_PATH, describeLoginError, readCallbackUrl } from '@/services/socialAuth'
+import { tr } from '@/i18n'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -34,7 +35,7 @@ onMounted(async () => {
     <ion-content class="ion-padding">
       <div class="center">
         <ion-spinner name="crescent" />
-        <p>로그인 중...</p>
+        <p>{{ tr('로그인 중...', 'Signing in...') }}</p>
       </div>
     </ion-content>
   </ion-page>
